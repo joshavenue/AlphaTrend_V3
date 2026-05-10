@@ -23,6 +23,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const suffix = randomUUID().slice(0, 8).toUpperCase();
       const commonTicker = `P3C${suffix}`.slice(0, 10);
       const etfTicker = `P3E${suffix}`.slice(0, 10);
+      const foreignTicker = `P3F${suffix}`.slice(0, 10);
       let jobRunId: string | undefined;
 
       try {
@@ -50,6 +51,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
               marketCategory: "Q",
               securityName: `${etfTicker} Test ETF`,
               symbol: etfTicker,
+              testIssue: false,
+            },
+            {
+              etf: false,
+              marketCategory: "Q",
+              securityName: "Novo Nordisk A/S Common Stock",
+              symbol: foreignTicker,
               testIssue: false,
             },
             {
@@ -95,6 +103,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
               companyName: `${commonTicker} Test Common Inc.`,
               ticker: commonTicker,
             },
+            {
+              cik: "353278",
+              companyName: "NOVO NORDISK A S",
+              ticker: foreignTicker,
+            },
           ],
         });
         const persisted = await persistSecurityMaster(
@@ -103,7 +116,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           build,
         );
 
-        expect(persisted.securitiesWritten).toBe(2);
+        expect(persisted.securitiesWritten).toBe(3);
         expect(persisted.identifiersWritten).toBeGreaterThanOrEqual(5);
         expect(persisted.evidenceWritten).toBeGreaterThan(0);
 
@@ -123,6 +136,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
             },
           },
         });
+        const foreign = await prisma.security.findUnique({
+          where: {
+            canonicalTicker_exchange: {
+              canonicalTicker: foreignTicker,
+              exchange: "NASDAQ",
+            },
+          },
+        });
 
         expect(common).toMatchObject({
           cik: "0000000001",
@@ -134,6 +155,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
           isEtf: true,
           securityType: "ETF",
           universeBucket: "US_ETF_ALL",
+        });
+        expect(foreign).toMatchObject({
+          securityType: "COMMON_STOCK",
+          universeBucket: "REVIEW_REQUIRED",
         });
 
         const identifiers = await prisma.securityIdentifier.findMany({
@@ -174,7 +199,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const securities = await prisma.security.findMany({
           where: {
             canonicalTicker: {
-              in: [commonTicker, etfTicker, `P3T${suffix}`.slice(0, 10)],
+              in: [
+                commonTicker,
+                etfTicker,
+                foreignTicker,
+                `P3T${suffix}`.slice(0, 10),
+              ],
             },
           },
         });

@@ -39,6 +39,7 @@ export type SecurityMasterRecord = {
   isEtf: boolean;
   isAdr: boolean;
   isDelisted: boolean;
+  foreignListingReviewRequired: boolean;
   cik?: string;
   figi?: string;
   compositeFigi?: string;

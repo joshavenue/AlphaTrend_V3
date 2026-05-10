@@ -13,6 +13,8 @@ import {
   classifySecurityType,
   cleanCompanyName,
   exchangeFromMassiveTicker,
+  hasExplicitAdrToken,
+  hasForeignListingReviewSignal,
   isAdrSecurity,
   micForExchange,
   normalizeAlphaExchange,
@@ -20,6 +22,7 @@ import {
   normalizeNasdaqListedExchange,
   normalizeTicker,
   parseListingDate,
+  requiresForeignListingReview,
 } from "@/lib/security-master/normalize";
 import type {
   SecurityMasterBuildResult,
@@ -120,6 +123,24 @@ function compactProviders(providers: Array<ProviderName | undefined>) {
   );
 }
 
+function classificationNames(input: {
+  record: SecurityMasterRecord;
+  nasdaq?: NasdaqSourceRow;
+  massive?: MassiveTicker;
+  openFigi?: OpenFigiMapping;
+  alphaActive?: AlphaVantageListing;
+  alphaDelisted?: AlphaVantageListing;
+}) {
+  return [
+    input.record.companyName,
+    input.nasdaq?.row.securityName,
+    input.massive?.name,
+    input.openFigi?.name,
+    input.alphaActive?.name,
+    input.alphaDelisted?.name,
+  ].filter((value): value is string => Boolean(value?.trim()));
+}
+
 function buildRecord(input: {
   nasdaq?: NasdaqSourceRow;
   sec?: SecCompanyTicker;
@@ -177,12 +198,25 @@ function buildRecord(input: {
   const isEtf = securityType === "ETF";
   const isAdr = isAdrSecurity({
     companyName,
+    isEtf,
     massive: input.massive,
+    nasdaq: input.nasdaq?.row,
+    openFigi: input.openFigi,
+    securityType,
+  });
+  const foreignListingReviewRequired = requiresForeignListingReview({
+    alpha: input.alphaActive ?? input.alphaDelisted,
+    companyName,
+    isAdr,
+    isEtf,
+    massive: input.massive,
+    nasdaq: input.nasdaq?.row,
     openFigi: input.openFigi,
     securityType,
   });
   const isTestIssue = input.nasdaq?.row.testIssue === true;
   const universeBucket = assignUniverseBucket({
+    foreignListingReviewRequired,
     isActive,
     isAdr,
     isDelisted,
@@ -281,6 +315,7 @@ function buildRecord(input: {
     isDelisted,
     isEtf,
     isTestIssue,
+    foreignListingReviewRequired,
     listingDate: parseListingDate(
       input.alphaActive?.ipoDate ?? input.alphaDelisted?.ipoDate,
     ),
@@ -307,6 +342,9 @@ function buildWarnings(input: {
   const { record } = input;
   const secCik = normalizeCik(input.sec?.cik);
   const massiveCik = normalizeCik(input.massive?.cik);
+  const names = classificationNames(input);
+  const adrTokenNames = names.filter(hasExplicitAdrToken);
+  const foreignSignalNames = names.filter(hasForeignListingReviewSignal);
 
   if (record.companyName.endsWith("Unnamed Security")) {
     warnings.push(
@@ -420,6 +458,86 @@ function buildWarnings(input: {
     );
   }
 
+  if (record.isEtf && adrTokenNames.length > 0) {
+    warnings.push(
+      warning({
+        code: SECURITY_MASTER_REASON_CODES.ADR_TOKEN_REJECTED,
+        detail: { matchedNames: adrTokenNames },
+        exchange: record.exchange,
+        message: "ADR text ignored because ETF classification has precedence.",
+        providers: compactProviders([
+          input.nasdaq ? "NASDAQ_TRADER" : undefined,
+          input.openFigi ? "OPENFIGI" : undefined,
+          input.massive ? "MASSIVE" : undefined,
+        ]),
+        severity: "INFO",
+        ticker: record.canonicalTicker,
+      }),
+    );
+  }
+
+  if (record.isAdr && adrTokenNames.length > 0) {
+    warnings.push(
+      warning({
+        code: SECURITY_MASTER_REASON_CODES.ADR_TOKEN_MATCH,
+        detail: { matchedNames: adrTokenNames },
+        exchange: record.exchange,
+        message: "Explicit ADR/ADS token was used for ADR classification.",
+        providers: compactProviders([
+          input.nasdaq ? "NASDAQ_TRADER" : undefined,
+          input.openFigi ? "OPENFIGI" : undefined,
+          input.massive ? "MASSIVE" : undefined,
+          input.sec ? "SEC" : undefined,
+        ]),
+        severity: "INFO",
+        ticker: record.canonicalTicker,
+      }),
+    );
+  }
+
+  if (record.foreignListingReviewRequired) {
+    warnings.push(
+      warning({
+        code: SECURITY_MASTER_REASON_CODES.COMMON_STOCK_BLOCKED_BY_FOREIGN_SIGNAL,
+        detail: { matchedNames: foreignSignalNames },
+        exchange: record.exchange,
+        message:
+          "Common-stock classification blocked from US_COMMON_ALL by foreign/listing review signal.",
+        providers: compactProviders([
+          input.nasdaq ? "NASDAQ_TRADER" : undefined,
+          input.sec ? "SEC" : undefined,
+          input.openFigi ? "OPENFIGI" : undefined,
+          input.massive ? "MASSIVE" : undefined,
+        ]),
+        severity: "WARNING",
+        ticker: record.canonicalTicker,
+      }),
+    );
+  } else if (
+    foreignSignalNames.length > 0 &&
+    record.universeBucket === "REVIEW_REQUIRED" &&
+    !record.isAdr &&
+    !record.isEtf
+  ) {
+    warnings.push(
+      warning({
+        code: SECURITY_MASTER_REASON_CODES.FOREIGN_LISTING_REVIEW_REQUIRED,
+        detail: { matchedNames: foreignSignalNames },
+        exchange: record.exchange,
+        message:
+          "Foreign/listing signal kept security in REVIEW_REQUIRED until policy review.",
+        providers: compactProviders([
+          input.nasdaq ? "NASDAQ_TRADER" : undefined,
+          input.sec ? "SEC" : undefined,
+          input.openFigi ? "OPENFIGI" : undefined,
+          input.massive ? "MASSIVE" : undefined,
+        ]),
+        severity: "WARNING",
+        ticker: record.canonicalTicker,
+      }),
+    );
+  }
+
   if (
     record.securityType === "COMMON_STOCK" &&
     record.isActive &&
@@ -521,6 +639,28 @@ function buildWarnings(input: {
   }
 
   return warnings;
+}
+
+function buildCommonUniverseInvariantWarnings(records: SecurityMasterRecord[]) {
+  return records
+    .filter(
+      (record) =>
+        record.universeBucket === "US_COMMON_ALL" &&
+        (hasExplicitAdrToken(record.companyName) ||
+          hasForeignListingReviewSignal(record.companyName)),
+    )
+    .map((record) =>
+      warning({
+        code: SECURITY_MASTER_REASON_CODES.COMMON_STOCK_BLOCKED_BY_FOREIGN_SIGNAL,
+        detail: { companyName: record.companyName },
+        exchange: record.exchange,
+        message:
+          "Invariant violation: review-marked security entered US_COMMON_ALL.",
+        providers: ["NASDAQ_TRADER"],
+        severity: "BLOCKER",
+        ticker: record.canonicalTicker,
+      }),
+    );
 }
 
 function summarize(
@@ -719,6 +859,8 @@ export function buildSecurityMaster(
       );
     }
   }
+
+  warnings.push(...buildCommonUniverseInvariantWarnings(records));
 
   const summary = summarize(
     records,

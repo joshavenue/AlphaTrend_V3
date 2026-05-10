@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { buildSecurityMaster } from "@/lib/security-master/builder";
 import {
   classifySecurityType,
+  hasExplicitAdrToken,
+  hasForeignListingReviewSignal,
   normalizeCik,
   normalizeTicker,
 } from "@/lib/security-master/normalize";
@@ -49,6 +51,33 @@ describe("security master normalization and merge", () => {
         companyName: "Example Acquisition Corp. Unit",
       }),
     ).toBe("SPAC_UNIT");
+    expect(
+      classifySecurityType({
+        companyName: "Morgan Stanley China A Share Fund, Inc.",
+      }),
+    ).toBe("CLOSED_END_FUND");
+  });
+
+  it("uses token-safe ADR matching and foreign listing review signals", () => {
+    expect(
+      hasExplicitAdrToken("Arm Holdings plc American Depositary Shares"),
+    ).toBe(true);
+    expect(
+      hasExplicitAdrToken("Taiwan Semiconductor Manufacturing Co. ADR"),
+    ).toBe(true);
+    expect(hasExplicitAdrToken("Ads-Tec Energy Public Ltd Co")).toBe(false);
+    expect(hasExplicitAdrToken("Arm Holdings PLC ADRhedged ETF")).toBe(false);
+    expect(hasForeignListingReviewSignal("Novo Nordisk A/S Common Stock")).toBe(
+      true,
+    );
+    expect(
+      hasForeignListingReviewSignal(
+        "ASML Holding N.V. - New York Registry Shares",
+      ),
+    ).toBe(true);
+    expect(hasForeignListingReviewSignal("Apple Inc. - Common Stock")).toBe(
+      false,
+    );
   });
 
   it("builds common-stock, ETF, ADR, and test-issue outcomes from provider fixtures", () => {
@@ -146,6 +175,147 @@ describe("security master normalization and merge", () => {
     ).toBe(false);
     expect(build.summary.skippedTestIssues).toBe(1);
     expect(build.summary.activeCommonStocks).toBe(1);
+  });
+
+  it("keeps foreign, registry, and ADR-themed listings out of domestic common stock", () => {
+    const build = buildSecurityMaster({
+      nasdaqListed: [
+        {
+          etf: false,
+          marketCategory: "Q",
+          securityName: "Apple Inc. - Common Stock",
+          symbol: "AAPL",
+          testIssue: false,
+        },
+        {
+          etf: true,
+          marketCategory: "Q",
+          securityName: "AdvisorShares Dorsey Wright ADR ETF",
+          symbol: "AADR",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          marketCategory: "Q",
+          securityName: "ASML Holding N.V. - New York Registry Shares",
+          symbol: "ASML",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          marketCategory: "Q",
+          securityName: "Shopify Inc. - Class A Subordinate Voting Shares",
+          symbol: "SHOP",
+          testIssue: false,
+        },
+      ],
+      otherListed: [
+        {
+          etf: false,
+          exchange: "N",
+          securityName: "Taiwan Semiconductor Manufacturing Company Ltd.",
+          symbol: "TSM",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          exchange: "N",
+          securityName: "Novo Nordisk A/S Common Stock",
+          symbol: "NVO",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          exchange: "N",
+          securityName: "Toyota Motor Corporation Common Stock",
+          symbol: "TM",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          exchange: "N",
+          securityName: "Arm Holdings plc American Depositary Shares",
+          symbol: "ARM",
+          testIssue: false,
+        },
+        {
+          etf: false,
+          exchange: "N",
+          securityName: "Ads-Tec Energy Public Ltd Co",
+          symbol: "ADSE",
+          testIssue: false,
+        },
+      ],
+      secTickers: [
+        {
+          cik: "0000320193",
+          companyName: "Apple Inc.",
+          ticker: "AAPL",
+        },
+        {
+          cik: "0001046179",
+          companyName: "Taiwan Semiconductor Manufacturing Co Ltd",
+          ticker: "TSM",
+        },
+        {
+          cik: "0000353278",
+          companyName: "NOVO NORDISK A S",
+          ticker: "NVO",
+        },
+        {
+          cik: "0001094517",
+          companyName: "TOYOTA MOTOR CORP/",
+          ticker: "TM",
+        },
+      ],
+    });
+    const byTicker = new Map(
+      build.records.map((record) => [record.canonicalTicker, record]),
+    );
+    const warningCodes = new Set(build.warnings.map((item) => item.code));
+
+    expect(byTicker.get("AAPL")).toMatchObject({
+      securityType: "COMMON_STOCK",
+      universeBucket: "US_COMMON_ALL",
+    });
+    expect(byTicker.get("AADR")).toMatchObject({
+      isAdr: false,
+      securityType: "ETF",
+      universeBucket: "US_ETF_ALL",
+    });
+    expect(byTicker.get("ARM")).toMatchObject({
+      isAdr: true,
+      securityType: "ADR",
+      universeBucket: "US_ADR_ALL",
+    });
+    expect(byTicker.get("ADSE")).toMatchObject({
+      isAdr: false,
+      universeBucket: "REVIEW_REQUIRED",
+    });
+
+    for (const ticker of ["TSM", "NVO", "TM", "ASML", "SHOP"]) {
+      expect(byTicker.get(ticker)?.universeBucket).not.toBe("US_COMMON_ALL");
+    }
+
+    expect(byTicker.get("NVO")).toMatchObject({
+      foreignListingReviewRequired: true,
+      securityType: "COMMON_STOCK",
+      universeBucket: "REVIEW_REQUIRED",
+    });
+    expect(byTicker.get("TM")).toMatchObject({
+      foreignListingReviewRequired: true,
+      securityType: "COMMON_STOCK",
+      universeBucket: "REVIEW_REQUIRED",
+    });
+    expect(warningCodes).toContain(
+      SECURITY_MASTER_REASON_CODES.COMMON_STOCK_BLOCKED_BY_FOREIGN_SIGNAL,
+    );
+    expect(warningCodes).toContain(
+      SECURITY_MASTER_REASON_CODES.ADR_TOKEN_REJECTED,
+    );
+    expect(warningCodes).toContain(
+      SECURITY_MASTER_REASON_CODES.ADR_TOKEN_MATCH,
+    );
   });
 
   it("surfaces reconciliation warnings without blocking canonical rows", () => {

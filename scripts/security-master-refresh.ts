@@ -128,6 +128,21 @@ function optionalProviderFailure(results: ProviderResult<unknown>[]) {
   );
 }
 
+function invariantFailure(build: ReturnType<typeof buildSecurityMaster>) {
+  const blockers = build.warnings.filter(
+    (warning) => warning.severity === "BLOCKER",
+  );
+
+  if (blockers.length === 0) {
+    return undefined;
+  }
+
+  return `${blockers.length} security master invariant violation(s): ${blockers
+    .slice(0, 3)
+    .map((warning) => `${warning.ticker ?? "unknown"} ${warning.code}`)
+    .join("; ")}`;
+}
+
 function selectOpenFigiTickers(records: SecurityMasterRecord[], limit: number) {
   const priority = ["AAPL", "MSFT", "NVDA", "SPY", "SMH", "QQQ"];
   const seen = new Set<string>();
@@ -306,6 +321,12 @@ async function main() {
       providerPayloadRefs: payloadRefsFromResults(providerResults),
       secTickers: secTickers.data as SecCompanyTicker[],
     });
+    const blockerSummary = invariantFailure(build);
+
+    if (blockerSummary) {
+      throw new Error(blockerSummary);
+    }
+
     const persistence = await persistSecurityMaster(
       prisma,
       jobRun.jobRunId,

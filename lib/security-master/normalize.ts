@@ -51,6 +51,10 @@ function includesAny(value: string, needles: string[]) {
   return needles.some((needle) => value.includes(needle));
 }
 
+function firstType<T extends SecurityType | undefined>(values: T[]) {
+  return values.find((value): value is Exclude<T, undefined> => Boolean(value));
+}
+
 export function normalizeTicker(value: string | undefined) {
   const ticker = value?.trim().toUpperCase().replace(/\s+/g, "");
   return ticker === "" ? undefined : ticker;
@@ -133,8 +137,74 @@ export function cleanCompanyName(value: string | undefined) {
   return name === "" ? undefined : name;
 }
 
+function allNames(input: {
+  companyName?: string;
+  nasdaq?: NasdaqSymbol;
+  massive?: MassiveTicker;
+  openFigi?: OpenFigiMapping;
+  alpha?: AlphaVantageListing;
+}) {
+  return [
+    input.companyName,
+    input.nasdaq?.securityName,
+    input.massive?.name,
+    input.openFigi?.name,
+    input.alpha?.name,
+  ].filter((value): value is string => Boolean(value?.trim()));
+}
+
+export function hasExplicitAdrToken(value: string | undefined) {
+  const name = upper(value);
+
+  if (!name) {
+    return false;
+  }
+
+  return (
+    /\bAMERICAN\s+DEPOSITARY\s+(SHARES?|RECEIPTS?)\b/.test(name) ||
+    /(^|[\s(,])ADR($|[\s),.])/.test(name) ||
+    /(^|[\s(,])ADS($|[\s),.])/.test(name)
+  );
+}
+
 function isAdrName(name: string) {
-  return includesAny(name, [" ADR", "ADS", "AMERICAN DEPOSITARY"]);
+  return hasExplicitAdrToken(name);
+}
+
+export function hasForeignListingReviewSignal(value: string | undefined) {
+  const name = upper(value);
+
+  if (!name) {
+    return false;
+  }
+
+  return [
+    /\bNEW\s+YORK\s+REGISTRY\s+SHARES?\b/,
+    /\bREGISTRY\s+SHARES?\b/,
+    /\bGLOBAL\s+DEPOSITARY\s+(SHARES?|RECEIPTS?)\b/,
+    /\bORDINARY\s+SHARES?\b/,
+    /\bSUBORDINATE\s+VOTING\s+SHARES?\b/,
+    /\bVARIABLE\s+VOTING\s+SHARES?\b/,
+    /\bLIMITED\s+VOTING\s+SHARES?\b/,
+    /\bA\/S\b/,
+    /\bA\s+S\b/,
+    /\bN\.?V\.?\b/,
+    /\bS\.?A\.?\b/,
+    /\bS\.?P\.?A\.?\b/,
+    /\bP\.?L\.?C\.?\b/,
+    /\bPLC\b/,
+    /\bLTD\.?\b/,
+    /\bLIMITED\b/,
+    /\bGMBH\b/,
+    /\bAG\b/,
+    /\bAB\b/,
+    /\bASA\b/,
+    /\bOYJ\b/,
+    /\bSE\b/,
+    /\bCORP\/\b/,
+    /\bCORP\/$/,
+    /\/[A-Z]{2}\b/,
+  ].some((pattern) => pattern.test(name));
 }
 
 function typeFromMassive(value: string | undefined) {
@@ -194,12 +264,12 @@ function typeFromFigi(value: string | undefined) {
     return "ETN" as const;
   }
 
-  if (type.includes("ADR") || type.includes("DEPOSITARY")) {
-    return "ADR" as const;
-  }
-
   if (type.includes("PREFERRED")) {
     return "PREFERRED" as const;
+  }
+
+  if (hasExplicitAdrToken(type)) {
+    return "ADR" as const;
   }
 
   if (type.includes("WARRANT")) {
@@ -243,7 +313,7 @@ function typeFromAlpha(value: string | undefined) {
   return undefined;
 }
 
-function typeFromName(value: string | undefined) {
+function excludedTypeFromName(value: string | undefined) {
   const name = upper(value);
 
   if (!name) {
@@ -258,7 +328,10 @@ function typeFromName(value: string | undefined) {
     return "ETF" as const;
   }
 
-  if (includesAny(name, ["CLOSED-END", "CLOSED END"])) {
+  if (
+    includesAny(name, ["CLOSED-END", "CLOSED END"]) ||
+    /\bFUND\b/.test(name)
+  ) {
     return "CLOSED_END_FUND" as const;
   }
 
@@ -280,15 +353,48 @@ function typeFromName(value: string | undefined) {
       : ("UNIT" as const);
   }
 
-  if (isAdrName(name)) {
-    return "ADR" as const;
+  return undefined;
+}
+
+function commonTypeFromName(value: string | undefined) {
+  const name = upper(value);
+
+  if (!name) {
+    return undefined;
   }
 
-  if (name.includes("COMMON STOCK") || name.includes("ORDINARY SHARES")) {
+  if (
+    includesAny(name, [
+      "COMMON STOCK",
+      "ORDINARY SHARES",
+      "REGISTRY SHARES",
+      "VOTING SHARES",
+    ])
+  ) {
     return "COMMON_STOCK" as const;
   }
 
   return undefined;
+}
+
+function typeFromName(value: string | undefined) {
+  const excludedType = excludedTypeFromName(value);
+
+  if (excludedType) {
+    return excludedType;
+  }
+
+  const name = upper(value);
+
+  if (!name) {
+    return undefined;
+  }
+
+  if (isAdrName(name)) {
+    return "ADR" as const;
+  }
+
+  return commonTypeFromName(value);
 }
 
 function firstNameType(values: Array<string | undefined>) {
@@ -314,27 +420,77 @@ export function classifySecurityType(input: {
     return "ETF";
   }
 
-  const inferred =
-    firstNameType([input.companyName, input.nasdaq?.securityName]) ??
-    typeFromMassive(input.massive?.type) ??
-    typeFromFigi(input.openFigi?.securityType) ??
-    typeFromAlpha(input.alpha?.assetType);
+  const names = allNames(input);
+  const excludedNameType = firstType(names.map(excludedTypeFromName));
+  const providerType = firstType([
+    typeFromMassive(input.massive?.type),
+    typeFromFigi(input.openFigi?.securityType),
+    typeFromAlpha(input.alpha?.assetType),
+  ]);
+  const explicitAdr =
+    names.some(hasExplicitAdrToken) ||
+    typeFromMassive(input.massive?.type) === "ADR" ||
+    typeFromFigi(input.openFigi?.securityType) === "ADR";
+  const commonNameType = firstType(names.map(commonTypeFromName));
+
+  if (excludedNameType) {
+    return excludedNameType;
+  }
+
+  if (explicitAdr || providerType === "ADR") {
+    return "ADR";
+  }
+
+  if (commonNameType || providerType === "COMMON_STOCK") {
+    return "COMMON_STOCK";
+  }
+
+  if (providerType) {
+    return providerType;
+  }
+
+  const inferred = firstNameType(names);
 
   return inferred ?? "UNKNOWN";
 }
 
 export function isAdrSecurity(input: {
   securityType: SecurityType;
+  isEtf?: boolean;
   companyName?: string;
+  nasdaq?: NasdaqSymbol;
   massive?: MassiveTicker;
   openFigi?: OpenFigiMapping;
 }) {
+  if (input.isEtf || input.securityType === "ETF") {
+    return false;
+  }
+
+  const names = allNames(input);
+
   return (
     input.securityType === "ADR" ||
     typeFromMassive(input.massive?.type) === "ADR" ||
     typeFromFigi(input.openFigi?.securityType) === "ADR" ||
-    isAdrName(upper(input.companyName) ?? "")
+    names.some(hasExplicitAdrToken)
   );
+}
+
+export function requiresForeignListingReview(input: {
+  securityType: SecurityType;
+  isAdr: boolean;
+  isEtf: boolean;
+  companyName?: string;
+  nasdaq?: NasdaqSymbol;
+  massive?: MassiveTicker;
+  openFigi?: OpenFigiMapping;
+  alpha?: AlphaVantageListing;
+}) {
+  if (input.securityType !== "COMMON_STOCK" || input.isAdr || input.isEtf) {
+    return false;
+  }
+
+  return allNames(input).some(hasForeignListingReviewSignal);
 }
 
 export function assignUniverseBucket(input: {
@@ -344,6 +500,7 @@ export function assignUniverseBucket(input: {
   isEtf: boolean;
   isAdr: boolean;
   isDelisted: boolean;
+  foreignListingReviewRequired?: boolean;
 }): UniverseBucket {
   if (input.isDelisted || !input.isActive) {
     return "US_DELISTED_HISTORY";
@@ -359,6 +516,10 @@ export function assignUniverseBucket(input: {
 
   if (input.isAdr) {
     return "US_ADR_ALL";
+  }
+
+  if (input.foreignListingReviewRequired) {
+    return "REVIEW_REQUIRED";
   }
 
   if (input.securityType === "COMMON_STOCK") {

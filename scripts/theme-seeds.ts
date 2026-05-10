@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { createPrismaClient } from "@/lib/db/prisma";
 import { validateCompanySeedRows } from "@/lib/themes/company-seeds";
 
 const DEFAULT_COMPANY_SEED_PATH = resolve(
@@ -22,11 +23,39 @@ function parseArgs(argv: string[]) {
   };
 }
 
+async function loadSecurityTickers() {
+  if (!process.env.DATABASE_URL) {
+    return undefined;
+  }
+
+  const prisma = createPrismaClient();
+
+  await prisma.$connect();
+
+  try {
+    const securities = await prisma.security.findMany({
+      select: {
+        canonicalTicker: true,
+      },
+    });
+
+    return new Set(
+      securities.map((security) => security.canonicalTicker.toUpperCase()),
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const source = await readFile(options.seedPath, "utf8");
-  const result = validateCompanySeedRows(source);
+  const securityTickers = await loadSecurityTickers();
+  const result = validateCompanySeedRows(source, { securityTickers });
   const errors = result.issues.filter((issue) => issue.severity === "ERROR");
+  const securityMasterCheck = securityTickers
+    ? "completed"
+    : "skipped_no_database_url";
 
   if (result.issues.length > 0) {
     console.table(
@@ -48,6 +77,7 @@ async function main() {
           errors: errors.length,
           seed_path: options.seedPath,
           seed_rows: result.rows.length,
+          security_master_check: securityMasterCheck,
           warnings: result.issues.length - errors.length,
         },
         null,
@@ -63,6 +93,8 @@ async function main() {
             "Phase 4 validates company seed rows but does not create investable theme candidates.",
           seed_path: options.seedPath,
           seed_rows: result.rows.length,
+          security_master_check: securityMasterCheck,
+          warnings: result.issues.length - errors.length,
         },
         null,
         2,

@@ -63,6 +63,9 @@ async function validateSeedEtfsExist(
           code: "THEME_VALIDATION_WARNING_SEED_ETF_NOT_IN_SECURITY_MASTER",
           message: `${symbol} is not present as an ETF in the current security master.`,
           severity: "WARNING",
+          sourceRowNumber: (
+            seed.sourceDetail as { source_row_number?: number } | null
+          )?.source_row_number,
           themeCode: seed.sourceThemeCode,
         });
       }

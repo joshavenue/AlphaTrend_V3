@@ -6,7 +6,7 @@ type CuratedThemeDetails = {
   invalidationRules: string[];
 };
 
-export const MVP_THEME_CODES = ["T001", "T002", "T004", "T017", "T007"];
+export const MVP_THEME_CODES = ["T001", "T002", "T004", "T007", "T017"];
 
 export const CURATED_MVP_THEME_DETAILS: Record<string, CuratedThemeDetails> = {
   T001: {

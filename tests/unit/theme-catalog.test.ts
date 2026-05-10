@@ -45,6 +45,17 @@ describe("theme catalog CSV transform", () => {
     expect(seed?.defaultDashboardState).toBe("INSUFFICIENT_EVIDENCE");
   });
 
+  it("keeps the MVP activation count and catalog backlog deterministic", () => {
+    const catalog = buildThemeCatalog(readFileSync(catalogPath, "utf8"));
+
+    expect(
+      catalog.seeds.filter((seed) => seed.status === "ACTIVE_UNSCANNED"),
+    ).toHaveLength(5);
+    expect(
+      catalog.seeds.filter((seed) => seed.status === "CATALOG_LOADED"),
+    ).toHaveLength(30);
+  });
+
   it("normalizes direct categories to matchable labels", () => {
     expect(normalizeThemeLabel("GPUs")).toBe("gpu");
     expect(normalizeThemeLabel("custom ASICs")).toBe("custom asic");
@@ -107,6 +118,37 @@ describe("theme catalog CSV transform", () => {
     expect(catalog.seeds).toHaveLength(0);
   });
 
+  it("fails validation for unsupported dashboard defaults", () => {
+    const invalidCatalog =
+      "theme_id,theme_name,theme_category,theme_mechanism,seed_etfs,direct_categories,excluded_categories,company_count_in_seed_csv,fmp_seed_etf_holdings_endpoints,api_generation_rule,default_dashboard_status,created_date\n" +
+      "T999,Broken Theme,Test,Specific mechanism,SMH,test direct supplier,generic unrelated software,0,https://financialmodelingprep.com/stable/etf/holdings?symbol=SMH,Seed from ETF,hot_buy_now,2026-05-08\n";
+    const catalog = buildThemeCatalog(invalidCatalog);
+
+    expect(catalog.issues).toContainEqual(
+      expect.objectContaining({
+        code: "THEME_VALIDATION_FAILED_INVALID_DASHBOARD_STATUS",
+        severity: "ERROR",
+      }),
+    );
+    expect(catalog.seeds).toHaveLength(0);
+  });
+
+  it("fails validation for duplicate source theme codes", () => {
+    const duplicateCatalog =
+      "theme_id,theme_name,theme_category,theme_mechanism,seed_etfs,direct_categories,excluded_categories,company_count_in_seed_csv,fmp_seed_etf_holdings_endpoints,api_generation_rule,default_dashboard_status,created_date\n" +
+      "T998,First Theme,Test,Specific mechanism,SMH,test direct supplier,generic unrelated software,0,https://financialmodelingprep.com/stable/etf/holdings?symbol=SMH,Seed from ETF,neutral_until_scored,2026-05-08\n" +
+      "T998,Second Theme,Test,Specific mechanism,SMH,test direct supplier,generic unrelated software,0,https://financialmodelingprep.com/stable/etf/holdings?symbol=SMH,Seed from ETF,neutral_until_scored,2026-05-08\n";
+    const catalog = buildThemeCatalog(duplicateCatalog);
+
+    expect(catalog.issues).toContainEqual(
+      expect.objectContaining({
+        code: "THEME_VALIDATION_FAILED_DUPLICATE_THEME_ID",
+        severity: "ERROR",
+      }),
+    );
+    expect(catalog.seeds).toHaveLength(1);
+  });
+
   it("warns when non-MVP catalog themes still use derived proof placeholders", () => {
     const catalog = buildThemeCatalog(readFileSync(catalogPath, "utf8"));
 
@@ -131,6 +173,35 @@ describe("theme company seed universe boundary", () => {
     expect(result.candidateRowsWritten).toBe(0);
     expect(result.issues.some((issue) => issue.severity === "ERROR")).toBe(
       false,
+    );
+  });
+
+  it("warns when company seed provider hints or security mapping are not usable", () => {
+    const csv =
+      "theme_id,ticker,company_name,initial_inclusion_method,api_retrievable,must_pass_alpha_trend_gates,fmp_profile_endpoint,openfigi_mapping_payload_hint\n" +
+      'T001,ZZZ,Example Co,manual_seed_for_api_validation,yes,T1 gates,not-a-url,"{""idType"":""TICKER"",""idValue"":""BAD"",""exchCode"":""US""}"\n';
+    const result = validateCompanySeedRows(csv, {
+      securityTickers: new Set(["NVDA"]),
+    });
+
+    expect(result.candidateRowsWritten).toBe(0);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: "THEME_SEED_VALIDATION_WARNING_MALFORMED_PROVIDER_ENDPOINT_HINT",
+        severity: "WARNING",
+      }),
+    );
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: "THEME_SEED_VALIDATION_WARNING_OPENFIGI_TICKER_MISMATCH",
+        severity: "WARNING",
+      }),
+    );
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: "THEME_SEED_VALIDATION_WARNING_TICKER_NOT_IN_SECURITY_MASTER",
+        severity: "WARNING",
+      }),
     );
   });
 });

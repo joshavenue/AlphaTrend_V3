@@ -7,6 +7,7 @@ import { type CsvRecord, parseCsv, splitSemicolonList } from "@/lib/themes/csv";
 import { THEME_REASON_CODES } from "@/lib/themes/reason-codes";
 
 export const THEME_LOADER_VERSION = "phase4_theme_loader_2026_05_10";
+const SUPPORTED_DEFAULT_DASHBOARD_STATUSES = new Set(["neutral_until_scored"]);
 
 type ValidationSeverity = "ERROR" | "WARNING";
 
@@ -296,6 +297,7 @@ export function validateCatalogRow(row: ThemeCatalogCsvRow) {
     ["directCategories", "direct_categories"],
     ["excludedCategories", "excluded_categories"],
     ["seedEtfs", "seed_etfs"],
+    ["defaultDashboardStatus", "default_dashboard_status"],
     ["createdDate", "created_date"],
   ];
 
@@ -315,6 +317,19 @@ export function validateCatalogRow(row: ThemeCatalogCsvRow) {
     issues.push({
       code: "THEME_VALIDATION_FAILED_INVALID_CREATED_DATE",
       message: `created_date is invalid: ${row.createdDate}`,
+      severity: "ERROR",
+      sourceRowNumber: row.sourceRowNumber,
+      themeCode: row.themeCode || undefined,
+    });
+  }
+
+  if (
+    row.defaultDashboardStatus &&
+    !SUPPORTED_DEFAULT_DASHBOARD_STATUSES.has(row.defaultDashboardStatus)
+  ) {
+    issues.push({
+      code: "THEME_VALIDATION_FAILED_INVALID_DASHBOARD_STATUS",
+      message: `default_dashboard_status is not supported: ${row.defaultDashboardStatus}`,
       severity: "ERROR",
       sourceRowNumber: row.sourceRowNumber,
       themeCode: row.themeCode || undefined,
@@ -541,9 +556,45 @@ export function buildThemeCatalog(
   const rows = records.map(rowFromCsv);
   const issues: ThemeValidationIssue[] = [];
   const seeds: ThemeDefinitionSeed[] = [];
+  const seenThemeCodes = new Map<string, number>();
+  const seenThemeSlugs = new Map<string, number>();
 
   for (const row of rows) {
     const rowIssues = validateCatalogRow(row);
+    const themeSlug = row.themeName ? slugifyThemeName(row.themeName) : "";
+    const previousThemeCodeRow = seenThemeCodes.get(row.themeCode);
+    const previousThemeSlugRow = themeSlug
+      ? seenThemeSlugs.get(themeSlug)
+      : undefined;
+
+    if (row.themeCode) {
+      seenThemeCodes.set(row.themeCode, row.sourceRowNumber);
+    }
+
+    if (themeSlug) {
+      seenThemeSlugs.set(themeSlug, row.sourceRowNumber);
+    }
+
+    if (previousThemeCodeRow) {
+      rowIssues.push({
+        code: "THEME_VALIDATION_FAILED_DUPLICATE_THEME_ID",
+        message: `theme_id duplicates row ${previousThemeCodeRow}: ${row.themeCode}`,
+        severity: "ERROR",
+        sourceRowNumber: row.sourceRowNumber,
+        themeCode: row.themeCode,
+      });
+    }
+
+    if (previousThemeSlugRow) {
+      rowIssues.push({
+        code: "THEME_VALIDATION_FAILED_DUPLICATE_THEME_SLUG",
+        message: `theme_name creates a duplicate slug from row ${previousThemeSlugRow}: ${themeSlug}`,
+        severity: "ERROR",
+        sourceRowNumber: row.sourceRowNumber,
+        themeCode: row.themeCode || undefined,
+      });
+    }
+
     issues.push(...rowIssues);
 
     if (rowIssues.some((issue) => issue.severity === "ERROR")) {

@@ -3,6 +3,9 @@ import type { ThemeValidationIssue } from "@/lib/themes/catalog";
 
 export type ThemeCompanySeedRow = {
   apiRetrievable: string;
+  apiValidationPriority: string;
+  beneficiaryType: string;
+  candidateRole: string;
   candidateRankWithinTheme: string;
   companyName: string;
   fmpFinancialStatementsEndpoints: string;
@@ -37,6 +40,9 @@ function value(record: CsvRecord, key: string) {
 function rowFromCsv(record: CsvRecord): ThemeCompanySeedRow {
   return {
     apiRetrievable: value(record, "api_retrievable"),
+    apiValidationPriority: value(record, "api_validation_priority"),
+    beneficiaryType: value(record, "beneficiary_type"),
+    candidateRole: value(record, "candidate_role"),
     candidateRankWithinTheme: value(record, "candidate_rank_within_theme"),
     companyName: value(record, "company_name"),
     fmpFinancialStatementsEndpoints: value(

@@ -10,6 +10,8 @@ import {
   parseBeaDatasets,
   parseBlsObservations,
   parseEiaRoutes,
+  parseFmpCompanyScreener,
+  parseFmpEtfHoldings,
   parseFmpRows,
   parseFredObservations,
   parseMassiveAggregateBars,
@@ -23,6 +25,8 @@ import {
   type BeaDataset,
   type BlsObservation,
   type EiaRoute,
+  type FmpCompanyScreenerRow,
+  type FmpEtfHolding,
   type FmpCompanyMetric,
   type FredObservation,
   type MassiveAggregateBar,
@@ -434,10 +438,10 @@ export async function fetchFmpIncomeStatement(
 export async function fetchFmpEtfHoldings(
   context: ProviderCallContext,
   etf = "SMH",
-): Promise<ProviderResult<FmpCompanyMetric[]>> {
+): Promise<ProviderResult<FmpEtfHolding[]>> {
   const env = getEnv();
   const endpoint = "etf_holdings";
-  const unconfigured = requireEnv<FmpCompanyMetric[]>(
+  const unconfigured = requireEnv<FmpEtfHolding[]>(
     context,
     "FMP",
     endpoint,
@@ -454,7 +458,7 @@ export async function fetchFmpEtfHoldings(
     entityId: etf,
     entityType: "etf",
     jobRunId: context.jobRunId,
-    parse: parseFmpRows,
+    parse: parseFmpEtfHoldings,
     prisma: context.prisma,
     provider: "FMP",
     retryCount: context.retryCount,
@@ -464,7 +468,43 @@ export async function fetchFmpEtfHoldings(
       apikey: env.FMP_API_KEY,
       symbol: etf,
     }),
-    validate: requireRows<FmpCompanyMetric[]>("FMP ETF holdings"),
+    validate: requireRows<FmpEtfHolding[]>("FMP ETF holdings"),
+  });
+}
+
+export async function fetchFmpCompanyScreener(
+  context: ProviderCallContext,
+): Promise<ProviderResult<FmpCompanyScreenerRow[]>> {
+  const env = getEnv();
+  const endpoint = "company_screener";
+  const unconfigured = requireEnv<FmpCompanyScreenerRow[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    jobRunId: context.jobRunId,
+    parse: parseFmpCompanyScreener,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery(
+      "https://financialmodelingprep.com/stable/company-screener",
+      {
+        apikey: env.FMP_API_KEY,
+      },
+    ),
+    validate: requireRows<FmpCompanyScreenerRow[]>("FMP company screener"),
   });
 }
 

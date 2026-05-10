@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #000000;
+  --bg-elevated: #0e0e0e;
+  --bg-row-hover: #181818;
+  --bg-row-active: #1f1f1f;
+  --bg-input: #0a0a0a;
+  --border-subtle: #1a1a1a;
+  --border-default: #262626;
+  --border-strong: #3f3f46;
+  --text-primary: #eaeaea;
+  --text-secondary: #a1a1aa;
+  --text-muted: #6b7280;
+  --text-inverse: #000000;
+  --accent-amber: #f7941d;
+  --accent-amber-dim: #b86a0f;
+  --accent-cyan: #22d3ee;
+  --state-positive: #22c55e;
+  --state-positive-bg: rgba(34, 197, 94, 0.1);
+  --state-caution: #fbbf24;
+  --state-caution-bg: rgba(251, 191, 36, 0.1);
+  --state-warning: #f97316;
+  --state-warning-bg: rgba(249, 115, 22, 0.12);
+  --state-negative: #ef4444;
+  --state-negative-bg: rgba(239, 68, 68, 0.12);
+  --state-info: #60a5fa;
+  --state-info-bg: rgba(96, 165, 250, 0.1);
+  --state-muted: #71717a;
+}
+
+@theme inline {
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --color-panel: var(--bg-elevated);
+  --color-panel-strong: var(--bg-row-active);
+  --color-row-hover: var(--bg-row-hover);
+  --color-input: var(--bg-input);
+  --color-border: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--text-muted);
+  --color-secondary: var(--text-secondary);
+  --color-inverse: var(--text-inverse);
+  --color-amber: var(--accent-amber);
+  --color-amber-dim: var(--accent-amber-dim);
+  --color-cyan: var(--accent-cyan);
+  --color-positive: var(--state-positive);
+  --color-positive-bg: var(--state-positive-bg);
+  --color-caution: var(--state-caution);
+  --color-caution-bg: var(--state-caution-bg);
+  --color-warning: var(--state-warning);
+  --color-warning-bg: var(--state-warning-bg);
+  --color-negative: var(--state-negative);
+  --color-negative-bg: var(--state-negative-bg);
+  --color-info: var(--state-info);
+  --color-info-bg: var(--state-info-bg);
+  --color-state-muted: var(--state-muted);
+  --font-sans: var(--font-ibm-plex-sans-condensed);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family:
+    var(--font-ibm-plex-sans-condensed), Arial, Helvetica, sans-serif;
+}
+
+button,
+a {
+  outline-offset: 4px;
+}
+
+::selection {
+  background: rgba(247, 148, 29, 0.28);
+}

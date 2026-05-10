@@ -1,0 +1,26 @@
+# Phase 0 quota scaffold. Do not treat these as verified provider entitlements.
+providers:
+  - provider: SEC
+    endpoint: placeholder
+    max_calls_per_run: 0
+    max_calls_per_day: 0
+    max_concurrency: 1
+    max_requests_per_second: 0
+    required_for_phase: 2
+    degrade_behavior: mark_unconfigured_until_phase_2
+  - provider: FMP
+    endpoint: placeholder
+    max_calls_per_run: 0
+    max_calls_per_day: 0
+    max_concurrency: 1
+    max_requests_per_second: 0
+    required_for_phase: 2
+    degrade_behavior: mark_unconfigured_until_phase_2
+  - provider: MASSIVE
+    endpoint: placeholder
+    max_calls_per_run: 0
+    max_calls_per_day: 0
+    max_concurrency: 1
+    max_requests_per_second: 0
+    required_for_phase: 2
+    degrade_behavior: mark_unconfigured_until_phase_2

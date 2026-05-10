@@ -1,0 +1,12 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Phase 0 intentionally defines no product tables.
+// Phase 1 owns the evidence ledger, provider payloads, securities, scores,
+// snapshots, state history, alerts, and job observability tables.

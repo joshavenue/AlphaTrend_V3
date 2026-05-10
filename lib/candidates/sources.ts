@@ -53,15 +53,19 @@ function asString(value: unknown) {
 }
 
 function significantTokens(value: string) {
-  return normalizeThemeLabel(value)
-    .split(/\s+/)
-    .filter((token) => token.length >= 3)
-    .filter(
-      (token) =>
-        !["and", "the", "with", "for", "only", "generic", "revenue"].includes(
-          token,
-        ),
-    );
+  return (
+    normalizeThemeLabel(value)
+      .split(/\s+/)
+      // Short tokens like AI, EV, and 5G are intentionally ignored here; Phase 6
+      // exposure scoring owns those high-noise theme anchors.
+      .filter((token) => token.length >= 3)
+      .filter(
+        (token) =>
+          !["and", "the", "with", "for", "only", "generic", "revenue"].includes(
+            token,
+          ),
+      )
+  );
 }
 
 function sourceTypeSort(left: string, right: string) {
@@ -178,6 +182,7 @@ export function sourceOfInclusionFromDetail(sourceDetail: unknown) {
   const sourceTypes = asRecord(sourceDetail).source_types;
 
   if (!Array.isArray(sourceTypes) || sourceTypes.length === 0) {
+    // Defensive fallback only; normal persistence always passes at least one source.
     return CANDIDATE_SOURCE_TYPES.MANUAL_SEED_FOR_API_VALIDATION;
   }
 

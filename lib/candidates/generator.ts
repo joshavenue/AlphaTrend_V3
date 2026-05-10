@@ -544,11 +544,7 @@ export async function generateThemeCandidates(
         jobRun.jobRunId,
         resolved.records,
       );
-      const warningItemsWritten = await writeWarningJobItems(
-        prisma,
-        jobRun.jobRunId,
-        themeWarnings,
-      );
+      await writeWarningJobItems(prisma, jobRun.jobRunId, themeWarnings);
 
       rowsWritten += persisted.candidatesTouched;
       evidenceWritten += persisted.evidenceWritten;
@@ -558,7 +554,6 @@ export async function generateThemeCandidates(
       themeSummaries.push(
         themeSourceSummary(theme, themeSources, persisted, themeWarnings),
       );
-      rowsWritten += warningItemsWritten === 0 ? 0 : 0;
     }
 
     const summary: CandidateGenerationSummary = {

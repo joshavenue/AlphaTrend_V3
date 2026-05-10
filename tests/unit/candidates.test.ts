@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { isUuid } from "@/lib/candidates/report";
 import { parseFmpEtfHoldings } from "@/lib/providers/parsers";
 import {
   CANDIDATE_SOURCE_TYPES,
@@ -25,6 +26,12 @@ const theme = {
 };
 
 describe("Phase 5 candidate source helpers", () => {
+  it("recognizes canonical UUID theme references for reports", () => {
+    expect(isUuid("00000000-0000-0000-0000-000000000005")).toBe(true);
+    expect(isUuid("00000000-0000-0000-000000000005")).toBe(false);
+    expect(isUuid("T001")).toBe(false);
+  });
+
   it("normalizes FMP ETF holdings with weights and dates", () => {
     const rows = parseFmpEtfHoldings([
       {

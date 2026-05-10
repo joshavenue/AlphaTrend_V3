@@ -178,6 +178,8 @@ export async function providerFetch<T>(
   const fetchedAt = new Date();
 
   let latestError: string | undefined;
+  let latestPayloadId: string | undefined;
+  let latestResponseHash: string | undefined;
   let latestStatus: number | undefined;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -191,12 +193,23 @@ export async function providerFetch<T>(
         method,
         signal: controller.signal,
       });
+      latestStatus = response.status;
       const rawBody = await response.text();
       const contentType = response.headers.get("content-type");
-      const parsedPayload = parseResponsePayload(contentType, rawBody);
+      latestResponseHash = hashPayload(rawBody || null);
+      let parsedPayload: unknown;
+
+      try {
+        parsedPayload = parseResponsePayload(contentType, rawBody);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        latestError = `Response parse failed for content-type ${contentType ?? "unknown"}: ${message}`;
+        throw new Error(latestError);
+      }
+
       const responseHash = hashPayload(parsedPayload);
+      latestResponseHash = responseHash;
       const durationMs = Date.now() - startedAt;
-      latestStatus = response.status;
 
       if (!response.ok) {
         latestError = `HTTP ${response.status} ${response.statusText}`;
@@ -224,6 +237,7 @@ export async function providerFetch<T>(
               requestMetadata,
             })
           : undefined;
+        latestPayloadId = failedPayload?.payloadId;
 
         await recordApiObservability(input.prisma!, {
           durationMs,
@@ -254,8 +268,6 @@ export async function providerFetch<T>(
         };
       }
 
-      const data = input.parse(parsedPayload);
-      const rowCount = input.rowCount?.(data);
       const payload = await storeProviderPayload(input.prisma!, {
         contentType: contentType ?? undefined,
         endpoint: input.endpoint,
@@ -267,6 +279,11 @@ export async function providerFetch<T>(
         provider: input.provider,
         requestMetadata,
       });
+      latestPayloadId = payload.payloadId;
+      latestResponseHash = payload.responseHash;
+
+      const data = input.parse(parsedPayload);
+      const rowCount = input.rowCount?.(data);
       const validationError = input.validate?.(data);
 
       if (validationError) {
@@ -351,6 +368,8 @@ export async function providerFetch<T>(
     jobRunId: input.jobRunId,
     provider: input.provider,
     requestHash,
+    payloadId: latestPayloadId,
+    responseHash: latestResponseHash,
     statusCode: latestStatus,
   });
 
@@ -360,8 +379,10 @@ export async function providerFetch<T>(
     fetchedAt: fetchedAt.toISOString(),
     httpStatus: latestStatus,
     ok: false,
+    payloadId: latestPayloadId,
     provider: input.provider,
     requestHash,
+    responseHash: latestResponseHash,
     sanitizedError: latestError ? redactText(latestError) : "Unknown error",
     sanitizedRequestMetadata,
     status: classifyStatus(latestStatus),

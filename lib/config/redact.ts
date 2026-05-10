@@ -5,12 +5,28 @@ export const SECRET_CENSOR = "[REDACTED]";
 const secretFieldNames = new Set([
   "apikey",
   "api_key",
+  "api-key",
   "authorization",
   "key",
   "password",
+  "registrationkey",
   "secret",
   "token",
   "access_token",
+  "access-token",
+  "x-openfigi-apikey",
+]);
+
+const compactSecretFieldNames = new Set([
+  "accesstoken",
+  "apikey",
+  "authorization",
+  "key",
+  "password",
+  "registrationkey",
+  "secret",
+  "token",
+  "xopenfigiapikey",
 ]);
 
 const secretValuePatterns = [
@@ -23,12 +39,45 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function normalizeFieldName(key: string) {
+  return key.trim().toLowerCase();
+}
+
+function compactFieldName(key: string) {
+  return normalizeFieldName(key).replace(/[-_\s]/g, "");
+}
+
+function isSecretEnvFieldName(key: string) {
+  const normalized = normalizeFieldName(key);
+  const compacted = compactFieldName(key);
+
+  return secretEnvKeys.some((secretKey) => {
+    const normalizedSecret = normalizeFieldName(secretKey);
+
+    return (
+      normalizedSecret === normalized ||
+      normalizedSecret.replace(/[-_\s]/g, "") === compacted
+    );
+  });
+}
+
 function isSecretFieldName(key: string) {
-  const normalized = key.trim().toLowerCase();
+  const normalized = normalizeFieldName(key);
+  const compacted = compactFieldName(key);
 
   return (
     secretFieldNames.has(normalized) ||
-    secretEnvKeys.some((secretKey) => secretKey.toLowerCase() === normalized)
+    compactSecretFieldNames.has(compacted) ||
+    compacted.includes("apikey") ||
+    isSecretEnvFieldName(key)
+  );
+}
+
+function isSecretQueryParamName(key: string) {
+  const compacted = compactFieldName(key);
+
+  return (
+    isSecretFieldName(key) || compacted === "userid" || compacted === "userkey"
   );
 }
 
@@ -36,7 +85,7 @@ function canonicalizeSearchParams(searchParams: URLSearchParams) {
   return [...searchParams.entries()]
     .map(([key, value]) => [
       key,
-      isSecretFieldName(key) ? SECRET_CENSOR : value,
+      isSecretQueryParamName(key) ? SECRET_CENSOR : value,
     ])
     .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
       leftKey === rightKey

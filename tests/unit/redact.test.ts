@@ -5,6 +5,7 @@ import {
   redactText,
   redactUrlSecrets,
 } from "@/lib/config/redact";
+import { hashRequestMetadata } from "@/lib/evidence/hash";
 
 describe("secret redaction", () => {
   it("redacts known env key assignments", () => {
@@ -46,5 +47,59 @@ describe("secret redaction", () => {
     );
     expect(output).not.toContain("secret");
     expect(output).not.toContain("other");
+  });
+
+  it("redacts provider-specific credential fields without over-redacting user ids", () => {
+    const output = redactRecord({
+      body: {
+        normal: "safe",
+        registrationkey: "bls-secret",
+      },
+      headers: {
+        Accept: "application/json",
+        "X-OPENFIGI-APIKEY": "openfigi-secret",
+      },
+      userId: "admin-user-1",
+    });
+
+    expect(output).toEqual({
+      body: {
+        normal: "safe",
+        registrationkey: "[REDACTED]",
+      },
+      headers: {
+        Accept: "application/json",
+        "X-OPENFIGI-APIKEY": "[REDACTED]",
+      },
+      userId: "admin-user-1",
+    });
+  });
+
+  it("redacts provider query credentials including BEA UserID", () => {
+    const output = redactText(
+      "https://apps.bea.gov/api/data?method=GETDATASETLIST&UserID=bea-secret",
+    );
+
+    expect(output).toBe(
+      "https://apps.bea.gov/api/data?method=GETDATASETLIST&UserID=%5BREDACTED%5D",
+    );
+    expect(output).not.toContain("bea-secret");
+  });
+
+  it("keeps request hashes stable when only provider credential values change", () => {
+    const first = hashRequestMetadata({
+      body: { registrationkey: "first-bls-secret", seriesid: ["CUUR0000SA0"] },
+      headers: { "X-OPENFIGI-APIKEY": "first-openfigi-secret" },
+      method: "POST",
+      url: "https://apps.bea.gov/api/data?UserID=first-bea-secret&method=GETDATASETLIST",
+    });
+    const second = hashRequestMetadata({
+      body: { registrationkey: "second-bls-secret", seriesid: ["CUUR0000SA0"] },
+      headers: { "X-OPENFIGI-APIKEY": "second-openfigi-secret" },
+      method: "POST",
+      url: "https://apps.bea.gov/api/data?UserID=second-bea-secret&method=GETDATASETLIST",
+    });
+
+    expect(first).toBe(second);
   });
 });

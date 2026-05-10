@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { createPrismaClient } from "@/lib/db/prisma";
 import { insertEvidence } from "@/lib/evidence/ledger";
 import {
@@ -19,11 +22,11 @@ import {
   mapOpenFigiTicker,
 } from "@/lib/providers/clients";
 import type { SecCompanyTicker } from "@/lib/providers/parsers";
+import {
+  classifySmokeRun,
+  type SmokeResult,
+} from "@/lib/providers/smoke-summary";
 import type { ProviderResult } from "@/lib/providers/types";
-
-type SmokeResult = ProviderResult<unknown> & {
-  evidenceWritten: number;
-};
 
 function shortError(error: string | undefined) {
   if (!error) {
@@ -172,50 +175,16 @@ async function main() {
       results.push(await recordResult(prisma, jobRun.jobRunId, await call()));
     }
 
-    const failedConfiguredCalls = results.filter(
-      (result) =>
-        !result.ok &&
-        result.status !== "UNCONFIGURED" &&
-        result.status !== "LICENSE_BLOCKED",
-    );
-    const licenseBlockedCalls = results.filter(
-      (result) => result.status === "LICENSE_BLOCKED",
-    );
-    const rowsRead = results.reduce(
-      (sum, result) => sum + (result.rowCount ?? 0),
-      0,
-    );
-    const evidenceWritten = results.reduce(
-      (sum, result) => sum + result.evidenceWritten,
-      0,
-    );
-    const providerCalls = results.filter(
-      (result) => result.status !== "UNCONFIGURED",
-    ).length;
+    const classification = classifySmokeRun(results);
 
     await prisma.jobRun.update({
       data: {
-        errorSummary:
-          failedConfiguredCalls.length || licenseBlockedCalls.length
-            ? [
-                failedConfiguredCalls.length
-                  ? `${failedConfiguredCalls.length} provider calls failed`
-                  : undefined,
-                licenseBlockedCalls.length
-                  ? `${licenseBlockedCalls.length} provider calls license-blocked`
-                  : undefined,
-              ]
-                .filter(Boolean)
-                .join("; ")
-            : undefined,
+        errorSummary: classification.errorSummary,
         finishedAt: new Date(),
-        providerCalls,
-        rowsRead,
-        rowsWritten: evidenceWritten,
-        status:
-          failedConfiguredCalls.length || licenseBlockedCalls.length
-            ? "PARTIAL"
-            : "SUCCEEDED",
+        providerCalls: classification.providerCalls,
+        rowsRead: classification.rowsRead,
+        rowsWritten: classification.evidenceWritten,
+        status: classification.jobStatus,
       },
       where: {
         jobRunId: jobRun.jobRunId,
@@ -224,9 +193,7 @@ async function main() {
 
     console.log(formatTable(results));
 
-    if (failedConfiguredCalls.length) {
-      process.exitCode = 1;
-    }
+    process.exitCode = classification.exitCode;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -247,4 +214,9 @@ async function main() {
   }
 }
 
-await main();
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  await main();
+}

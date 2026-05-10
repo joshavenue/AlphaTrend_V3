@@ -1,0 +1,107 @@
+# Phase 2 conservative provider quota defaults.
+# These are safety limits, not verified entitlement claims.
+providers:
+  - provider: SEC
+    endpoint: company_tickers
+    max_calls_per_run: 1
+    max_calls_per_day: 24
+    max_concurrency: 4
+    max_requests_per_second: 8
+    required_for_phase: 2
+    degrade_behavior: block_filing_dependent_stages_when_failing
+  - provider: SEC
+    endpoint: companyfacts
+    max_calls_per_run: 25
+    max_calls_per_day: 500
+    max_concurrency: 4
+    max_requests_per_second: 8
+    required_for_phase: 2
+    degrade_behavior: mark_filing_facts_stale
+  - provider: NASDAQ_TRADER
+    endpoint: symboldir
+    max_calls_per_run: 2
+    max_calls_per_day: 24
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: keep_existing_listing_metadata_stale
+  - provider: MASSIVE
+    endpoint: reference_tickers
+    max_calls_per_run: 25
+    max_calls_per_day: 500
+    max_concurrency: 3
+    max_requests_per_second: 3
+    required_for_phase: 2
+    degrade_behavior: mark_market_reference_stale
+  - provider: MASSIVE
+    endpoint: daily_aggregate_bars
+    max_calls_per_run: 100
+    max_calls_per_day: 1000
+    max_concurrency: 3
+    max_requests_per_second: 3
+    required_for_phase: 2
+    degrade_behavior: mark_price_state_insufficient_data
+  - provider: OPENFIGI
+    endpoint: mapping
+    max_calls_per_run: 25
+    max_calls_per_day: 250
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: mark_new_identifier_mapping_review_required
+  - provider: FMP
+    endpoint: fundamentals_and_holdings
+    max_calls_per_run: 100
+    max_calls_per_day: 1000
+    max_concurrency: 2
+    max_requests_per_second: 2
+    required_for_phase: 2
+    degrade_behavior: mark_vendor_fundamentals_stale
+  - provider: ALPHA_VANTAGE
+    endpoint: listing_status
+    max_calls_per_run: 2
+    max_calls_per_day: 10
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: skip_survivorship_crosscheck
+  - provider: FRED
+    endpoint: series_observations
+    max_calls_per_run: 20
+    max_calls_per_day: 200
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: mark_macro_context_stale
+  - provider: BEA
+    endpoint: dataset_list
+    max_calls_per_run: 5
+    max_calls_per_day: 50
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: mark_demand_context_partial
+  - provider: BLS
+    endpoint: timeseries
+    max_calls_per_run: 10
+    max_calls_per_day: 100
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: mark_macro_context_partial
+  - provider: EIA
+    endpoint: v2
+    max_calls_per_run: 10
+    max_calls_per_day: 100
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: mark_energy_context_partial
+  - provider: USA_SPENDING
+    endpoint: spending_by_award
+    max_calls_per_run: 10
+    max_calls_per_day: 100
+    max_concurrency: 1
+    max_requests_per_second: 1
+    required_for_phase: 2
+    degrade_behavior: retain_unmapped_awards_as_theme_level_only

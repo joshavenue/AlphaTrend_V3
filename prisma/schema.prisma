@@ -1,0 +1,797 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProviderName {
+  SEC
+  NASDAQ_TRADER
+  MASSIVE
+  FMP
+  OPENFIGI
+  ALPHA_VANTAGE
+  FRED
+  BEA
+  BLS
+  EIA
+  USA_SPENDING
+  USPTO
+}
+
+enum SecurityType {
+  COMMON_STOCK
+  ADR
+  ETF
+  ETN
+  CLOSED_END_FUND
+  PREFERRED
+  WARRANT
+  RIGHT
+  UNIT
+  SPAC_UNIT
+  INDEX
+  FUND
+  UNKNOWN
+}
+
+enum UniverseBucket {
+  US_COMMON_ALL
+  US_COMMON_LIQUID
+  US_COMMON_CORE
+  US_MICROCAP_SPECULATIVE
+  US_ETF_ALL
+  US_ADR_ALL
+  US_DELISTED_HISTORY
+  REVIEW_REQUIRED
+}
+
+enum CandidateStatus {
+  ACTIVE
+  REJECTED
+  WATCH_ONLY
+  NO_TRADE
+  INACTIVE
+  REVIEW_REQUIRED
+}
+
+enum BeneficiaryType {
+  DIRECT_BENEFICIARY
+  MAJOR_BENEFICIARY
+  PARTIAL_BENEFICIARY
+  INDIRECT_BENEFICIARY
+  NARRATIVE_ADJACENT
+  SAME_SECTOR_ONLY
+  UNRELATED
+  UNKNOWN
+}
+
+enum FundamentalState {
+  VALIDATED
+  IMPROVING
+  NOT_YET_VALIDATED
+  DETERIORATING
+  CONTRADICTED
+  INSUFFICIENT_DATA
+}
+
+enum PriceState {
+  NEUTRAL
+  IMPROVING
+  PARTICIPANT
+  LEADER
+  LEADER_BUT_EXTENDED
+  DELAYED_CATCH_UP_CANDIDATE
+  NON_PARTICIPANT
+  PRICE_OUTRAN_EVIDENCE
+  NEEDS_CONSOLIDATION
+  BROKEN
+  INSUFFICIENT_DATA
+}
+
+enum LiquidityState {
+  CORE_ELIGIBLE
+  EXPANDED_ELIGIBLE
+  SPECULATIVE_ONLY
+  ILLIQUID
+  INSUFFICIENT_DATA
+}
+
+enum DilutionRiskState {
+  LOW
+  MODERATE
+  HIGH
+  SEVERE
+  INSUFFICIENT_DATA
+}
+
+enum FlowState {
+  NOT_BUILT_MVP_PLACEHOLDER
+  ETF_FLOW_ELIGIBLE
+  BROADENING_OWNERSHIP
+  INSTITUTIONAL_ACCUMULATION
+  CROWDED_OWNERSHIP
+  DISTRIBUTION_OR_TRIMMING
+  NO_MEANINGFUL_FLOW_ACCESS
+  INSUFFICIENT_DATA
+}
+
+enum BaseRateState {
+  NOT_BUILT_MVP_PLACEHOLDER
+  SUPPORTIVE
+  MIXED
+  UNFAVORABLE
+  LOW_SAMPLE_WARNING
+  INSUFFICIENT_DATA
+}
+
+enum FinalState {
+  SINGLE_STOCK_RESEARCH_JUSTIFIED
+  BASKET_PREFERRED
+  ETF_PREFERRED
+  WATCHLIST_ONLY
+  LEADER_BUT_EXTENDED
+  DELAYED_CATCH_UP_CANDIDATE
+  NON_PARTICIPANT
+  WRONG_TICKER
+  NO_TRADE
+  REJECTED
+  INVALIDATED
+  INSUFFICIENT_DATA
+}
+
+enum DashboardState {
+  WORTH_CHECKING_OUT
+  EARLY_WATCHLIST
+  CONFIRMED_BUT_EXTENDED
+  CROWDED_LATE
+  FADING
+  INSUFFICIENT_EVIDENCE
+  NO_CLEAN_EXPRESSION
+  REJECTED_INACTIVE
+}
+
+enum SignalLayer {
+  T1_EXPOSURE_PURITY
+  T2_ECONOMIC_DEMAND
+  T3_FUNDAMENTALS
+  T4_PRICE_VALUATION_PARTICIPATION
+  T5_OWNERSHIP_FLOW
+  T6_LIQUIDITY_DILUTION_FRAGILITY
+  T7_BASE_RATE
+  T8_EXPRESSION_DECISION
+}
+
+enum EvidenceGrade {
+  A
+  B
+  C
+  D
+}
+
+enum PayloadRedactionStatus {
+  NO_SECRETS_DETECTED
+  REDACTED
+  FAILED
+  NOT_APPLICABLE
+}
+
+enum ThemeDefinitionStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  REVIEW_REQUIRED
+}
+
+enum JobType {
+  PROVIDER_SMOKE
+  SECURITY_MASTER_REFRESH
+  THEME_CANDIDATE_GENERATION
+  PRICE_BACKFILL
+  FUNDAMENTAL_BACKFILL
+  THEME_SCAN
+  THEME_SNAPSHOT
+  ALERT_GENERATION
+  BACKFILL
+}
+
+enum JobStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+  PARTIAL
+  CANCELLED
+}
+
+enum JobItemStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum AlertSeverity {
+  INFO
+  POSITIVE
+  CAUTION
+  WARNING
+  BLOCKER
+}
+
+enum AlertDeliveryStatus {
+  STORED
+  SENT
+  FAILED
+  SUPPRESSED
+}
+
+enum WatchType {
+  THEME
+  TICKER_THEME_PAIR
+  TICKER_GLOBAL
+}
+
+enum WatchlistStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AuthRole {
+  ADMIN
+}
+
+enum AuthAuditEventType {
+  ADMIN_CREATED
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_CHANGED
+  SESSION_REVOKED
+  ADMIN_JOB_TRIGGERED
+}
+
+enum IdentifierConfidence {
+  HIGH
+  MEDIUM
+  LOW
+  REVIEW_REQUIRED
+}
+
+model Security {
+  securityId      String          @id @default(uuid()) @map("security_id") @db.Uuid
+  canonicalTicker String          @map("canonical_ticker")
+  companyName     String          @map("company_name")
+  exchange        String?
+  mic             String?
+  country         String          @default("US")
+  currency        String          @default("USD")
+  securityType    SecurityType    @map("security_type")
+  universeBucket  UniverseBucket? @map("universe_bucket")
+  isActive        Boolean         @default(true) @map("is_active")
+  isTestIssue     Boolean         @default(false) @map("is_test_issue")
+  isEtf           Boolean         @default(false) @map("is_etf")
+  isAdr           Boolean         @default(false) @map("is_adr")
+  isDelisted      Boolean         @default(false) @map("is_delisted")
+  cik             String?
+  figi            String?
+  compositeFigi   String?         @map("composite_figi")
+  shareClassFigi  String?         @map("share_class_figi")
+  listingDate     DateTime?       @map("listing_date") @db.Date
+  delistingDate   DateTime?       @map("delisting_date") @db.Date
+  lastVerifiedAt  DateTime?       @map("last_verified_at") @db.Timestamptz(3)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  alerts         Alert[]
+  candidates     ThemeCandidate[]
+  evidence       EvidenceLedger[]
+  identifiers    SecurityIdentifier[]
+  signalStates   SignalState[]
+  watchlistItems WatchlistItem[]
+
+  @@unique([canonicalTicker, exchange], map: "securities_canonical_ticker_exchange_key")
+  @@unique([figi], map: "securities_figi_key")
+  @@unique([cik, canonicalTicker], map: "securities_cik_canonical_ticker_key")
+  @@index([canonicalTicker], map: "securities_canonical_ticker_idx")
+  @@index([cik], map: "securities_cik_idx")
+  @@index([figi], map: "securities_figi_idx")
+  @@index([securityType], map: "securities_security_type_idx")
+  @@index([isActive], map: "securities_is_active_idx")
+  @@index([isEtf], map: "securities_is_etf_idx")
+  @@index([isAdr], map: "securities_is_adr_idx")
+  @@map("securities")
+}
+
+model SecurityIdentifier {
+  securityIdentifierId String                @id @default(uuid()) @map("security_identifier_id") @db.Uuid
+  securityId           String                @map("security_id") @db.Uuid
+  provider             ProviderName
+  identifierType       String                @map("identifier_type")
+  identifierValue      String                @map("identifier_value")
+  validFrom            DateTime?             @map("valid_from") @db.Date
+  validTo              DateTime?             @map("valid_to") @db.Date
+  confidence           IdentifierConfidence?
+  sourcePayloadHash    String?               @map("source_payload_hash")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  security Security @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+
+  @@unique([provider, identifierType, identifierValue], map: "security_identifiers_provider_type_value_key")
+  @@index([securityId], map: "security_identifiers_security_id_idx")
+  @@map("security_identifiers")
+}
+
+model ProviderPayload {
+  payloadId          String                 @id @default(uuid()) @map("payload_id") @db.Uuid
+  provider           ProviderName
+  endpoint           String
+  entityType         String?                @map("entity_type")
+  entityId           String?                @map("entity_id")
+  requestHash        String                 @map("request_hash")
+  responseHash       String                 @map("response_hash")
+  payloadStorageUri  String?                @map("payload_storage_uri")
+  payloadPreviewJson Json?                  @map("payload_preview_json")
+  fetchedAt          DateTime               @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  httpStatus         Int?                   @map("http_status")
+  contentType        String?                @map("content_type")
+  sizeBytes          Int?                   @map("size_bytes")
+  redactionStatus    PayloadRedactionStatus @default(REDACTED) @map("redaction_status")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  apiCalls ApiObservability[]
+  evidence EvidenceLedger[]
+
+  @@unique([provider, endpoint, requestHash, responseHash], map: "provider_payloads_provider_endpoint_hashes_key")
+  @@index([provider, endpoint, responseHash], map: "provider_payloads_provider_endpoint_response_hash_idx")
+  @@index([responseHash], map: "provider_payloads_response_hash_idx")
+  @@index([fetchedAt], map: "provider_payloads_fetched_at_idx")
+  @@map("provider_payloads")
+}
+
+model JobRun {
+  jobRunId      String    @id @default(uuid()) @map("job_run_id") @db.Uuid
+  jobType       JobType   @map("job_type")
+  scopeType     String?   @map("scope_type")
+  scopeId       String?   @map("scope_id")
+  status        JobStatus
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(3)
+  rowsRead      Int       @default(0) @map("rows_read")
+  rowsWritten   Int       @default(0) @map("rows_written")
+  providerCalls Int       @default(0) @map("provider_calls")
+  errorSummary  String?   @map("error_summary")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  apiCalls     ApiObservability[]
+  evidence     EvidenceLedger[]
+  jobItems     JobItem[]
+  jobLocks     JobLock[]
+  signalScores CandidateSignalScore[]
+  signalStates CandidateSignalState[]
+  snapshots    ThemeSnapshot[]
+  stateHistory SignalState[]
+
+  @@index([jobType, status, startedAt], map: "job_runs_type_status_started_at_idx")
+  @@index([scopeType, scopeId], map: "job_runs_scope_idx")
+  @@map("job_runs")
+}
+
+model ApiObservability {
+  apiCallId      String       @id @default(uuid()) @map("api_call_id") @db.Uuid
+  jobRunId       String?      @map("job_run_id") @db.Uuid
+  provider       ProviderName
+  endpoint       String
+  requestHash    String?      @map("request_hash")
+  statusCode     Int?         @map("status_code")
+  durationMs     Int?         @map("duration_ms")
+  rowCount       Int?         @map("row_count")
+  responseHash   String?      @map("response_hash")
+  payloadId      String?      @map("payload_id") @db.Uuid
+  sanitizedError String?      @map("sanitized_error")
+  calledAt       DateTime     @default(now()) @map("called_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun  JobRun?          @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  payload ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+
+  @@index([provider, endpoint, calledAt], map: "api_observability_provider_endpoint_called_at_idx")
+  @@index([jobRunId], map: "api_observability_job_run_id_idx")
+  @@index([statusCode], map: "api_observability_status_code_idx")
+  @@index([payloadId], map: "api_observability_payload_id_idx")
+  @@map("api_observability")
+}
+
+model ThemeDefinition {
+  themeId                       String                @id @default(uuid()) @map("theme_id") @db.Uuid
+  themeSlug                     String                @unique @map("theme_slug")
+  themeName                     String                @unique @map("theme_name")
+  shortDescription              String?               @map("short_description")
+  economicMechanism             Json                  @map("economic_mechanism")
+  primaryDemandDrivers          Json                  @map("primary_demand_drivers")
+  supplyConstraints             Json?                 @map("supply_constraints")
+  pricingPowerPoints            Json?                 @map("pricing_power_points")
+  directBeneficiaryCategories   Json                  @map("direct_beneficiary_categories")
+  indirectBeneficiaryCategories Json                  @map("indirect_beneficiary_categories")
+  excludedCategories            Json                  @map("excluded_categories")
+  seedEtfs                      Json?                 @map("seed_etfs")
+  candidateIndustries           Json?                 @map("candidate_industries")
+  candidateScreenerRules        Json?                 @map("candidate_screener_rules")
+  requiredEconomicProof         Json                  @map("required_economic_proof")
+  requiredFundamentalProof      Json                  @map("required_fundamental_proof")
+  priceConfirmationRules        Json?                 @map("price_confirmation_rules")
+  valuationRiskRules            Json?                 @map("valuation_risk_rules")
+  liquidityRules                Json?                 @map("liquidity_rules")
+  invalidationRules             Json                  @map("invalidation_rules")
+  status                        ThemeDefinitionStatus
+  createdAt                     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  alerts         Alert[]
+  candidates     ThemeCandidate[]
+  evidence       EvidenceLedger[]
+  signalStates   SignalState[]
+  snapshots      ThemeSnapshot[]
+  watchlistItems WatchlistItem[]
+
+  @@index([status], map: "theme_definitions_status_idx")
+  @@map("theme_definitions")
+}
+
+model ThemeCandidate {
+  themeCandidateId  String           @id @default(uuid()) @map("theme_candidate_id") @db.Uuid
+  themeId           String           @map("theme_id") @db.Uuid
+  securityId        String           @map("security_id") @db.Uuid
+  candidateStatus   CandidateStatus  @map("candidate_status")
+  beneficiaryType   BeneficiaryType? @map("beneficiary_type")
+  finalState        FinalState?      @map("final_state")
+  sourceOfInclusion String           @map("source_of_inclusion")
+  sourceDetail      Json?            @map("source_detail")
+  firstSeenAt       DateTime         @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt        DateTime?        @map("last_seen_at") @db.Timestamptz(3)
+  lastScannedAt     DateTime?        @map("last_scanned_at") @db.Timestamptz(3)
+  displayGroup      String?          @map("display_group")
+  dashboardVisible  Boolean          @default(true) @map("dashboard_visible")
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  alerts         Alert[]
+  security       Security               @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  signalScores   CandidateSignalScore[]
+  signalStates   CandidateSignalState[]
+  stateHistory   SignalState[]
+  theme          ThemeDefinition        @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  watchlistItems WatchlistItem[]
+
+  @@unique([themeId, securityId], map: "theme_candidates_theme_security_key")
+  @@index([themeId, securityId], map: "theme_candidates_theme_security_idx")
+  @@index([candidateStatus], map: "theme_candidates_candidate_status_idx")
+  @@index([finalState], map: "theme_candidates_final_state_idx")
+  @@map("theme_candidates")
+}
+
+model EvidenceLedger {
+  evidenceId          String         @id @default(uuid()) @map("evidence_id") @db.Uuid
+  jobRunId            String?        @map("job_run_id") @db.Uuid
+  themeId             String?        @map("theme_id") @db.Uuid
+  securityId          String?        @map("security_id") @db.Uuid
+  provider            ProviderName
+  endpoint            String?
+  payloadId           String?        @map("payload_id") @db.Uuid
+  sourceUrlOrEndpoint String?        @map("source_url_or_endpoint")
+  sourcePayloadHash   String?        @map("source_payload_hash")
+  entityType          String?        @map("entity_type")
+  entityId            String?        @map("entity_id")
+  metricName          String         @map("metric_name")
+  metricValueText     String?        @map("metric_value_text")
+  metricValueNum      Decimal?       @map("metric_value_num") @db.Decimal(28, 8)
+  metricUnit          String?        @map("metric_unit")
+  periodStart         DateTime?      @map("period_start") @db.Date
+  periodEnd           DateTime?      @map("period_end") @db.Date
+  asOfDate            DateTime?      @map("as_of_date") @db.Date
+  observedAt          DateTime?      @map("observed_at") @db.Timestamptz(3)
+  fetchedAt           DateTime       @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  evidenceGrade       EvidenceGrade? @map("evidence_grade")
+  reliabilityScore    Decimal?       @map("reliability_score") @db.Decimal(10, 4)
+  freshnessScore      Decimal?       @map("freshness_score") @db.Decimal(10, 4)
+  reasonCode          String?        @map("reason_code")
+  scoreImpact         Decimal?       @map("score_impact") @db.Decimal(10, 4)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun   JobRun?          @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  payload  ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+  security Security?        @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  theme    ThemeDefinition? @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+
+  @@index([themeId, securityId], map: "evidence_ledger_theme_security_idx")
+  @@index([provider, endpoint], map: "evidence_ledger_provider_endpoint_idx")
+  @@index([metricName], map: "evidence_ledger_metric_name_idx")
+  @@index([asOfDate], map: "evidence_ledger_as_of_date_idx")
+  @@index([reasonCode], map: "evidence_ledger_reason_code_idx")
+  @@index([jobRunId], map: "evidence_ledger_job_run_id_idx")
+  @@index([payloadId], map: "evidence_ledger_payload_id_idx")
+  @@map("evidence_ledger")
+}
+
+model CandidateSignalScore {
+  candidateSignalScoreId String      @id @default(uuid()) @map("candidate_signal_score_id") @db.Uuid
+  themeCandidateId       String      @map("theme_candidate_id") @db.Uuid
+  signalLayer            SignalLayer @map("signal_layer")
+  score                  Decimal?    @db.Decimal(10, 4)
+  maxScore               Decimal     @default(100) @map("max_score") @db.Decimal(10, 4)
+  scoreVersion           String      @map("score_version")
+  evidenceIds            Json?       @map("evidence_ids")
+  reasonCodes            Json?       @map("reason_codes")
+  computedAt             DateTime    @default(now()) @map("computed_at") @db.Timestamptz(3)
+  jobRunId               String?     @map("job_run_id") @db.Uuid
+
+  jobRun         JobRun?        @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  themeCandidate ThemeCandidate @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: Restrict)
+
+  @@index([themeCandidateId, signalLayer, computedAt], map: "candidate_signal_scores_candidate_layer_time_idx")
+  @@index([jobRunId], map: "candidate_signal_scores_job_run_id_idx")
+  @@map("candidate_signal_scores")
+}
+
+model CandidateSignalState {
+  candidateSignalStateId String      @id @default(uuid()) @map("candidate_signal_state_id") @db.Uuid
+  themeCandidateId       String      @map("theme_candidate_id") @db.Uuid
+  signalLayer            SignalLayer @map("signal_layer")
+  state                  String
+  stateVersion           String      @map("state_version")
+  reasonCodes            Json?       @map("reason_codes")
+  evidenceIds            Json?       @map("evidence_ids")
+  computedAt             DateTime    @default(now()) @map("computed_at") @db.Timestamptz(3)
+  jobRunId               String?     @map("job_run_id") @db.Uuid
+
+  jobRun         JobRun?        @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  themeCandidate ThemeCandidate @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: Restrict)
+
+  @@index([themeCandidateId, signalLayer, computedAt], map: "candidate_signal_states_candidate_layer_time_idx")
+  @@index([jobRunId], map: "candidate_signal_states_job_run_id_idx")
+  @@map("candidate_signal_states")
+}
+
+model ThemeSnapshot {
+  themeSnapshotId          String         @id @default(uuid()) @map("theme_snapshot_id") @db.Uuid
+  themeId                  String         @map("theme_id") @db.Uuid
+  snapshotDate             DateTime       @map("snapshot_date") @db.Date
+  dashboardState           DashboardState @map("dashboard_state")
+  themeReviewPriorityScore Decimal?       @map("theme_review_priority_score") @db.Decimal(10, 4)
+  themeRealityScore        Decimal?       @map("theme_reality_score") @db.Decimal(10, 4)
+  directBeneficiaryCount   Int            @default(0) @map("direct_beneficiary_count")
+  investableCandidateCount Int            @default(0) @map("investable_candidate_count")
+  leaderCount              Int            @default(0) @map("leader_count")
+  leaderButExtendedCount   Int            @default(0) @map("leader_but_extended_count")
+  delayedCatchupCount      Int            @default(0) @map("delayed_catchup_count")
+  watchlistOnlyCount       Int            @default(0) @map("watchlist_only_count")
+  wrongTickerCount         Int            @default(0) @map("wrong_ticker_count")
+  noTradeCount             Int            @default(0) @map("no_trade_count")
+  basketPreferred          Boolean        @default(false) @map("basket_preferred")
+  etfPreferred             Boolean        @default(false) @map("etf_preferred")
+  highlightReasonCodes     Json?          @map("highlight_reason_codes")
+  cautionReasonCodes       Json?          @map("caution_reason_codes")
+  topDirectBeneficiaries   Json?          @map("top_direct_beneficiaries")
+  topRejectedTickers       Json?          @map("top_rejected_tickers")
+  dataQualityScore         Decimal?       @map("data_quality_score") @db.Decimal(10, 4)
+  lastScannedAt            DateTime?      @map("last_scanned_at") @db.Timestamptz(3)
+  jobRunId                 String?        @map("job_run_id") @db.Uuid
+  createdAt                DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun JobRun?         @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  theme  ThemeDefinition @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+
+  @@unique([themeId, snapshotDate, jobRunId], map: "theme_snapshots_theme_date_job_key")
+  @@index([themeId, snapshotDate], map: "theme_snapshots_theme_date_idx")
+  @@index([dashboardState], map: "theme_snapshots_dashboard_state_idx")
+  @@index([jobRunId], map: "theme_snapshots_job_run_id_idx")
+  @@map("theme_snapshots")
+}
+
+model SignalState {
+  signalStateId    String         @id @default(uuid()) @map("signal_state_id") @db.Uuid
+  themeId          String         @map("theme_id") @db.Uuid
+  securityId       String?        @map("security_id") @db.Uuid
+  themeCandidateId String?        @map("theme_candidate_id") @db.Uuid
+  stateType        String         @map("state_type")
+  previousState    String?        @map("previous_state")
+  currentState     String         @map("current_state")
+  previousScore    Decimal?       @map("previous_score") @db.Decimal(10, 4)
+  currentScore     Decimal?       @map("current_score") @db.Decimal(10, 4)
+  stateChangedAt   DateTime       @default(now()) @map("state_changed_at") @db.Timestamptz(3)
+  cooldownUntil    DateTime?      @map("cooldown_until") @db.Timestamptz(3)
+  severity         AlertSeverity?
+  reasonCodes      Json?          @map("reason_codes")
+  evidenceIds      Json?          @map("evidence_ids")
+  jobRunId         String?        @map("job_run_id") @db.Uuid
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  alerts         Alert[]
+  jobRun         JobRun?         @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  security       Security?       @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  theme          ThemeDefinition @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  themeCandidate ThemeCandidate? @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: SetNull)
+
+  @@index([themeId, securityId, stateType, stateChangedAt], map: "signal_states_theme_security_type_changed_idx")
+  @@index([cooldownUntil], map: "signal_states_cooldown_until_idx")
+  @@index([themeCandidateId], map: "signal_states_theme_candidate_id_idx")
+  @@index([jobRunId], map: "signal_states_job_run_id_idx")
+  @@map("signal_states")
+}
+
+model Alert {
+  alertId          String              @id @default(uuid()) @map("alert_id") @db.Uuid
+  signalStateId    String?             @map("signal_state_id") @db.Uuid
+  themeId          String?             @map("theme_id") @db.Uuid
+  securityId       String?             @map("security_id") @db.Uuid
+  themeCandidateId String?             @map("theme_candidate_id") @db.Uuid
+  alertType        String              @map("alert_type")
+  severity         AlertSeverity
+  title            String
+  message          String
+  reasonCodes      Json?               @map("reason_codes")
+  deliveryChannel  String?             @map("delivery_channel")
+  deliveryStatus   AlertDeliveryStatus @default(STORED) @map("delivery_status")
+  sentAt           DateTime?           @map("sent_at") @db.Timestamptz(3)
+  readAt           DateTime?           @map("read_at") @db.Timestamptz(3)
+  dismissedAt      DateTime?           @map("dismissed_at") @db.Timestamptz(3)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  createdWatchlistItems WatchlistItem[]  @relation("WatchlistCreatedFromAlert")
+  security              Security?        @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  signalState           SignalState?     @relation(fields: [signalStateId], references: [signalStateId], onDelete: SetNull)
+  theme                 ThemeDefinition? @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  themeCandidate        ThemeCandidate?  @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: SetNull)
+
+  @@index([themeId, securityId, alertType], map: "alerts_theme_security_type_idx")
+  @@index([deliveryStatus], map: "alerts_delivery_status_idx")
+  @@index([readAt, dismissedAt], map: "alerts_read_dismissed_idx")
+  @@index([createdAt], map: "alerts_created_at_idx")
+  @@map("alerts")
+}
+
+model WatchlistItem {
+  watchlistItemId    String          @id @default(uuid()) @map("watchlist_item_id") @db.Uuid
+  userId             String?         @map("user_id") @db.Uuid
+  themeId            String?         @map("theme_id") @db.Uuid
+  securityId         String?         @map("security_id") @db.Uuid
+  themeCandidateId   String?         @map("theme_candidate_id") @db.Uuid
+  watchType          WatchType       @map("watch_type")
+  status             WatchlistStatus @default(ACTIVE)
+  notes              String?
+  createdFromAlertId String?         @map("created_from_alert_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt         DateTime?       @map("archived_at") @db.Timestamptz(3)
+
+  createdFromAlert Alert?           @relation("WatchlistCreatedFromAlert", fields: [createdFromAlertId], references: [alertId], onDelete: SetNull)
+  security         Security?        @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  theme            ThemeDefinition? @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  themeCandidate   ThemeCandidate?  @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: SetNull)
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "watchlist_items_user_id_idx")
+  @@index([themeId, securityId, watchType], map: "watchlist_items_theme_security_type_idx")
+  @@index([status], map: "watchlist_items_status_idx")
+  @@map("watchlist_items")
+}
+
+model JobLock {
+  lockKey     String   @id @map("lock_key")
+  jobRunId    String?  @map("job_run_id") @db.Uuid
+  lockedAt    DateTime @default(now()) @map("locked_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+  heartbeatAt DateTime @default(now()) @map("heartbeat_at") @db.Timestamptz(3)
+  ownerId     String?  @map("owner_id")
+
+  jobRun JobRun? @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+
+  @@index([expiresAt], map: "job_locks_expires_at_idx")
+  @@index([jobRunId], map: "job_locks_job_run_id_idx")
+  @@map("job_locks")
+}
+
+model JobItem {
+  jobItemId    String        @id @default(uuid()) @map("job_item_id") @db.Uuid
+  jobRunId     String        @map("job_run_id") @db.Uuid
+  itemType     String        @map("item_type")
+  itemId       String        @map("item_id")
+  status       JobItemStatus
+  attemptCount Int           @default(0) @map("attempt_count")
+  startedAt    DateTime?     @map("started_at") @db.Timestamptz(3)
+  finishedAt   DateTime?     @map("finished_at") @db.Timestamptz(3)
+  errorSummary String?       @map("error_summary")
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun JobRun @relation(fields: [jobRunId], references: [jobRunId], onDelete: Restrict)
+
+  @@index([jobRunId, status], map: "job_items_job_run_status_idx")
+  @@index([itemType, itemId], map: "job_items_type_id_idx")
+  @@map("job_items")
+}
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique
+  passwordHash      String    @map("password_hash")
+  role              AuthRole  @default(ADMIN)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(3)
+  disabledAt        DateTime? @map("disabled_at") @db.Timestamptz(3)
+
+  accounts       Account[]
+  auditEvents    AuthAuditEvent[]
+  sessions       Session[]
+  watchlistItems WatchlistItem[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  refreshToken      String?  @map("refresh_token")
+  accessToken       String?  @map("access_token")
+  expiresAt         Int?     @map("expires_at")
+  tokenType         String?  @map("token_type")
+  scope             String?
+  idToken           String?  @map("id_token")
+  sessionState      String?  @map("session_state")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId], map: "accounts_provider_provider_account_id_key")
+  @@index([userId], map: "accounts_user_id_idx")
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime @db.Timestamptz(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "sessions_user_id_idx")
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz(3)
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+model AuthAuditEvent {
+  authAuditEventId String             @id @default(uuid()) @map("auth_audit_event_id") @db.Uuid
+  eventType        AuthAuditEventType @map("event_type")
+  userId           String?            @map("user_id") @db.Uuid
+  email            String?
+  ipHash           String?            @map("ip_hash")
+  userAgentHash    String?            @map("user_agent_hash")
+  metadataJson     Json?              @map("metadata_json")
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt], map: "auth_audit_events_type_created_at_idx")
+  @@index([userId], map: "auth_audit_events_user_id_idx")
+  @@map("auth_audit_events")
+}

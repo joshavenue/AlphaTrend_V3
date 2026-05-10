@@ -1,0 +1,2 @@
+-- Phase 0 migration frame.
+-- No product tables are created until Phase 1.

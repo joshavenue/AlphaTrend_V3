@@ -10,6 +10,8 @@ import {
   parseBeaDatasets,
   parseBlsObservations,
   parseEiaRoutes,
+  parseFmpCompanyScreener,
+  parseFmpEtfHoldings,
   parseFmpRows,
   parseFredObservations,
   parseMassiveAggregateBars,
@@ -23,6 +25,8 @@ import {
   type BeaDataset,
   type BlsObservation,
   type EiaRoute,
+  type FmpCompanyScreenerRow,
+  type FmpEtfHolding,
   type FmpCompanyMetric,
   type FredObservation,
   type MassiveAggregateBar,
@@ -215,9 +219,13 @@ export async function fetchNasdaqOtherListed(
   });
 }
 
-export async function fetchMassiveReferenceTicker(
+export async function fetchMassiveReferenceTickers(
   context: ProviderCallContext,
-  ticker = "AAPL",
+  options: {
+    active?: boolean;
+    limit?: number;
+    ticker?: string;
+  } = {},
 ): Promise<ProviderResult<MassiveTicker[]>> {
   const env = getEnv();
   const endpoint = "reference_tickers";
@@ -235,8 +243,8 @@ export async function fetchMassiveReferenceTicker(
 
   return providerFetch({
     endpoint,
-    entityId: ticker,
-    entityType: "ticker",
+    entityId: options.ticker,
+    entityType: options.ticker ? "ticker" : "market",
     jobRunId: context.jobRunId,
     parse: parseMassiveTickers,
     prisma: context.prisma,
@@ -245,12 +253,23 @@ export async function fetchMassiveReferenceTicker(
     rowCount: (rows) => rows.length,
     timeoutMs: context.timeoutMs,
     url: withQuery("https://api.massive.com/v3/reference/tickers", {
-      active: "true",
+      active: options.active === false ? "false" : "true",
       apiKey: env.MASSIVE_API_KEY,
+      limit: options.limit === undefined ? undefined : String(options.limit),
       market: "stocks",
-      ticker,
+      ticker: options.ticker,
     }),
     validate: requireRows<MassiveTicker[]>("Massive reference tickers"),
+  });
+}
+
+export async function fetchMassiveReferenceTicker(
+  context: ProviderCallContext,
+  ticker = "AAPL",
+): Promise<ProviderResult<MassiveTicker[]>> {
+  return fetchMassiveReferenceTickers(context, {
+    active: true,
+    ticker,
   });
 }
 
@@ -302,21 +321,26 @@ export async function mapOpenFigiTicker(
   context: ProviderCallContext,
   ticker = "AAPL",
 ): Promise<ProviderResult<OpenFigiMapping[]>> {
+  return mapOpenFigiTickers(context, [ticker]);
+}
+
+export async function mapOpenFigiTickers(
+  context: ProviderCallContext,
+  tickers: string[],
+): Promise<ProviderResult<OpenFigiMapping[]>> {
   const env = getEnv();
   const endpoint = "mapping";
-  const body = [
-    {
-      exchCode: "US",
-      idType: "TICKER",
-      idValue: ticker,
-    },
-  ];
+  const body = tickers.map((ticker) => ({
+    exchCode: "US",
+    idType: "TICKER",
+    idValue: ticker,
+  }));
 
   return providerFetch({
     body,
     endpoint,
-    entityId: ticker,
-    entityType: "ticker",
+    entityId: tickers.length === 1 ? tickers[0] : `${tickers.length}_tickers`,
+    entityType: tickers.length === 1 ? "ticker" : "ticker_batch",
     headers: {
       "Content-Type": "application/json",
       "X-OPENFIGI-APIKEY": env.OPENFIGI_API_KEY,
@@ -414,10 +438,10 @@ export async function fetchFmpIncomeStatement(
 export async function fetchFmpEtfHoldings(
   context: ProviderCallContext,
   etf = "SMH",
-): Promise<ProviderResult<FmpCompanyMetric[]>> {
+): Promise<ProviderResult<FmpEtfHolding[]>> {
   const env = getEnv();
   const endpoint = "etf_holdings";
-  const unconfigured = requireEnv<FmpCompanyMetric[]>(
+  const unconfigured = requireEnv<FmpEtfHolding[]>(
     context,
     "FMP",
     endpoint,
@@ -434,7 +458,7 @@ export async function fetchFmpEtfHoldings(
     entityId: etf,
     entityType: "etf",
     jobRunId: context.jobRunId,
-    parse: parseFmpRows,
+    parse: parseFmpEtfHoldings,
     prisma: context.prisma,
     provider: "FMP",
     retryCount: context.retryCount,
@@ -444,7 +468,43 @@ export async function fetchFmpEtfHoldings(
       apikey: env.FMP_API_KEY,
       symbol: etf,
     }),
-    validate: requireRows<FmpCompanyMetric[]>("FMP ETF holdings"),
+    validate: requireRows<FmpEtfHolding[]>("FMP ETF holdings"),
+  });
+}
+
+export async function fetchFmpCompanyScreener(
+  context: ProviderCallContext,
+): Promise<ProviderResult<FmpCompanyScreenerRow[]>> {
+  const env = getEnv();
+  const endpoint = "company_screener";
+  const unconfigured = requireEnv<FmpCompanyScreenerRow[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    jobRunId: context.jobRunId,
+    parse: parseFmpCompanyScreener,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery(
+      "https://financialmodelingprep.com/stable/company-screener",
+      {
+        apikey: env.FMP_API_KEY,
+      },
+    ),
+    validate: requireRows<FmpCompanyScreenerRow[]>("FMP company screener"),
   });
 }
 

@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum ProviderName {
+  ALPHATREND_INTERNAL
   SEC
   NASDAQ_TRADER
   MASSIVE
@@ -181,15 +182,21 @@ enum PayloadRedactionStatus {
 
 enum ThemeDefinitionStatus {
   DRAFT
+  CATALOG_LOADED
+  ACTIVE_UNSCANNED
+  ACTIVE_SCANNED
+  PAUSED_DATA_GAP
   ACTIVE
   INACTIVE
   ARCHIVED
+  RETIRED
   REVIEW_REQUIRED
 }
 
 enum JobType {
   PROVIDER_SMOKE
   SECURITY_MASTER_REFRESH
+  THEME_DEFINITION_LOAD
   THEME_CANDIDATE_GENERATION
   PRICE_BACKFILL
   FUNDAMENTAL_BACKFILL
@@ -408,6 +415,7 @@ model ApiObservability {
 
 model ThemeDefinition {
   themeId                       String                @id @default(uuid()) @map("theme_id") @db.Uuid
+  sourceThemeCode               String?               @unique @map("source_theme_code")
   themeSlug                     String                @unique @map("theme_slug")
   themeName                     String                @unique @map("theme_name")
   shortDescription              String?               @map("short_description")
@@ -427,6 +435,8 @@ model ThemeDefinition {
   valuationRiskRules            Json?                 @map("valuation_risk_rules")
   liquidityRules                Json?                 @map("liquidity_rules")
   invalidationRules             Json                  @map("invalidation_rules")
+  defaultDashboardState         DashboardState        @default(INSUFFICIENT_EVIDENCE) @map("default_dashboard_state")
+  sourceDetail                  Json?                 @map("source_detail")
   status                        ThemeDefinitionStatus
   createdAt                     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)

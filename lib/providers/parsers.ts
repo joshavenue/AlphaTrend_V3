@@ -57,6 +57,26 @@ export type FmpCompanyMetric = Record<string, unknown> & {
   date?: string;
 };
 
+export type FmpEtfHolding = {
+  asOfDate?: string;
+  holdingName?: string;
+  marketValue?: number;
+  raw: Record<string, unknown>;
+  shares?: number;
+  symbol: string;
+  weight?: number;
+};
+
+export type FmpCompanyScreenerRow = {
+  companyName?: string;
+  exchangeShortName?: string;
+  industry?: string;
+  marketCap?: number;
+  raw: Record<string, unknown>;
+  sector?: string;
+  symbol: string;
+};
+
 export type AlphaVantageListing = {
   symbol: string;
   name?: string;
@@ -381,6 +401,107 @@ export function parseOpenFigiMappings(payload: unknown): OpenFigiMapping[] {
 
 export function parseFmpRows(payload: unknown): FmpCompanyMetric[] {
   return asArray(payload).map((row) => asRecord(row) as FmpCompanyMetric);
+}
+
+function firstString(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = asString(row[key]);
+
+    if (value?.trim()) {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function firstNumber(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = asNumber(row[key]);
+
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+export function parseFmpEtfHoldings(payload: unknown): FmpEtfHolding[] {
+  return asArray(payload).flatMap((value) => {
+    const row = asRecord(value);
+    const symbol = firstString(row, [
+      "symbol",
+      "holdingSymbol",
+      "holding_symbol",
+      "ticker",
+    ])?.toUpperCase();
+
+    if (!symbol) {
+      return [];
+    }
+
+    return [
+      {
+        asOfDate: firstString(row, [
+          "date",
+          "updatedAt",
+          "updated_at",
+          "asOfDate",
+          "as_of_date",
+        ]),
+        holdingName: firstString(row, [
+          "name",
+          "holdingName",
+          "holding_name",
+          "asset",
+        ]),
+        marketValue: firstNumber(row, [
+          "marketValue",
+          "market_value",
+          "marketVal",
+        ]),
+        raw: row,
+        shares: firstNumber(row, ["sharesNumber", "shares", "share"]),
+        symbol,
+        weight: firstNumber(row, [
+          "weightPercentage",
+          "weight",
+          "holdingWeight",
+          "holding_weight",
+        ]),
+      },
+    ];
+  });
+}
+
+export function parseFmpCompanyScreener(
+  payload: unknown,
+): FmpCompanyScreenerRow[] {
+  return asArray(payload).flatMap((value) => {
+    const row = asRecord(value);
+    const symbol = firstString(row, ["symbol", "ticker"])?.toUpperCase();
+
+    if (!symbol) {
+      return [];
+    }
+
+    return [
+      {
+        companyName: firstString(row, ["companyName", "company_name", "name"]),
+        exchangeShortName: firstString(row, [
+          "exchangeShortName",
+          "exchange_short_name",
+          "exchange",
+        ]),
+        industry: firstString(row, ["industry"]),
+        marketCap: firstNumber(row, ["marketCap", "market_cap", "mktCap"]),
+        raw: row,
+        sector: firstString(row, ["sector"]),
+        symbol,
+      },
+    ];
+  });
 }
 
 export function parseAlphaVantageListingCsv(

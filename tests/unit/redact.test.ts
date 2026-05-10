@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { redactRecord, redactText } from "@/lib/config/redact";
+import {
+  redactRecord,
+  redactText,
+  redactUrlSecrets,
+} from "@/lib/config/redact";
 
 describe("secret redaction", () => {
   it("redacts known env key assignments", () => {
@@ -30,5 +34,17 @@ describe("secret redaction", () => {
         message: "safe",
       },
     });
+  });
+
+  it("redacts and canonicalizes secret URL query params", () => {
+    const output = redactUrlSecrets(
+      "https://example.com/provider?symbol=NVDA&apiKey=secret&token=other",
+    );
+
+    expect(output).toBe(
+      "https://example.com/provider?apiKey=%5BREDACTED%5D&symbol=NVDA&token=%5BREDACTED%5D",
+    );
+    expect(output).not.toContain("secret");
+    expect(output).not.toContain("other");
   });
 });

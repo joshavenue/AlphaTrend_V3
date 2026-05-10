@@ -1,10 +1,18 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
-import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prismaClient?: PrismaClient;
 };
+
+function prismaLogLevels(): Prisma.LogLevel[] {
+  if (process.env.NODE_ENV === "test") {
+    return [];
+  }
+
+  return process.env.APP_ENV === "production" ? ["error"] : ["warn", "error"];
+}
 
 export function createPrismaClient(databaseUrl = process.env.DATABASE_URL) {
   if (!databaseUrl) {
@@ -15,7 +23,7 @@ export function createPrismaClient(databaseUrl = process.env.DATABASE_URL) {
     adapter: new PrismaPg({
       connectionString: databaseUrl,
     }),
-    log: process.env.APP_ENV === "production" ? ["error"] : ["warn", "error"],
+    log: prismaLogLevels(),
   });
 }
 

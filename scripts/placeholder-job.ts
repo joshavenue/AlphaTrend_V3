@@ -8,7 +8,7 @@ if (!jobName) {
 console.log(
   JSON.stringify(
     {
-      status: "phase_0_placeholder",
+      status: "phase_1_placeholder",
       job: jobName,
       detail:
         "Job entrypoint exists. Real job behavior starts in later phases.",

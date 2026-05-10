@@ -3,6 +3,7 @@ import type {
   ThemeDefinitionSeed,
   ThemeValidationIssue,
 } from "@/lib/themes/catalog";
+import { THEME_REASON_CODES } from "@/lib/themes/reason-codes";
 
 type ThemeDefinitionDbClient = Pick<
   PrismaClient,
@@ -60,7 +61,7 @@ async function validateSeedEtfsExist(
     for (const symbol of seedEtfSymbols(seed)) {
       if (!found.has(symbol)) {
         warnings.push({
-          code: "THEME_VALIDATION_WARNING_SEED_ETF_NOT_IN_SECURITY_MASTER",
+          code: THEME_REASON_CODES.VALIDATION_WARNING_SEED_ETF_NOT_IN_SECURITY_MASTER,
           message: `${symbol} is not present as an ETF in the current security master.`,
           severity: "WARNING",
           sourceRowNumber: (

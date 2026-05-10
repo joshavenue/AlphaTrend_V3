@@ -303,9 +303,8 @@ function buildRecord(input: {
     companyName,
     compositeFigi:
       input.openFigi?.compositeFigi ?? input.massive?.compositeFigi,
-    country: input.massive?.locale?.toLowerCase() === "us" ? "US" : "US",
-    currency:
-      input.massive?.currencyName?.toUpperCase() === "USD" ? "USD" : "USD",
+    country: "US",
+    currency: "USD",
     delistingDate: parseListingDate(input.alphaDelisted?.delistingDate),
     exchange,
     figi: input.openFigi?.figi,

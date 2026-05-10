@@ -1,4 +1,5 @@
 import { type CsvRecord, parseCsv, splitSemicolonList } from "@/lib/themes/csv";
+import { THEME_REASON_CODES } from "@/lib/themes/reason-codes";
 import type { ThemeValidationIssue } from "@/lib/themes/catalog";
 
 export type ThemeCompanySeedRow = {
@@ -102,7 +103,7 @@ function validateUrlHint(
       issues.push(
         issueForRow(
           row,
-          "THEME_SEED_VALIDATION_WARNING_MALFORMED_PROVIDER_ENDPOINT_HINT",
+          THEME_REASON_CODES.SEED_VALIDATION_WARNING_MALFORMED_PROVIDER_ENDPOINT_HINT,
           `${field} is not a valid provider endpoint URL: ${endpoint}`,
         ),
       );
@@ -136,7 +137,7 @@ function validateOpenFigiHint(row: ThemeCompanySeedRow) {
       return [
         issueForRow(
           row,
-          "THEME_SEED_VALIDATION_WARNING_OPENFIGI_TICKER_MISMATCH",
+          THEME_REASON_CODES.SEED_VALIDATION_WARNING_OPENFIGI_TICKER_MISMATCH,
           `openfigi_mapping_payload_hint idValue ${payload.idValue} does not match ticker ${row.ticker}.`,
         ),
       ];
@@ -147,7 +148,7 @@ function validateOpenFigiHint(row: ThemeCompanySeedRow) {
     return [
       issueForRow(
         row,
-        "THEME_SEED_VALIDATION_WARNING_MALFORMED_OPENFIGI_HINT",
+        THEME_REASON_CODES.SEED_VALIDATION_WARNING_MALFORMED_OPENFIGI_HINT,
         "openfigi_mapping_payload_hint must be valid JSON with idType, idValue, and exchCode.",
       ),
     ];
@@ -183,17 +184,33 @@ export function validateCompanySeedRows(
   const issues: ThemeValidationIssue[] = [];
 
   for (const row of rows) {
-    const required: Array<[keyof ThemeCompanySeedRow, string]> = [
-      ["themeCode", "theme_id"],
-      ["ticker", "ticker"],
-      ["companyName", "company_name"],
-      ["initialInclusionMethod", "initial_inclusion_method"],
+    const required: Array<[keyof ThemeCompanySeedRow, string, string]> = [
+      [
+        "themeCode",
+        "theme_id",
+        THEME_REASON_CODES.SEED_VALIDATION_FAILED_MISSING_THEME_ID,
+      ],
+      [
+        "ticker",
+        "ticker",
+        THEME_REASON_CODES.SEED_VALIDATION_FAILED_MISSING_TICKER,
+      ],
+      [
+        "companyName",
+        "company_name",
+        THEME_REASON_CODES.SEED_VALIDATION_FAILED_MISSING_COMPANY_NAME,
+      ],
+      [
+        "initialInclusionMethod",
+        "initial_inclusion_method",
+        THEME_REASON_CODES.SEED_VALIDATION_FAILED_MISSING_INITIAL_INCLUSION_METHOD,
+      ],
     ];
 
-    for (const [field, sourceName] of required) {
+    for (const [field, sourceName, code] of required) {
       if (!row[field]) {
         issues.push({
-          code: `THEME_SEED_VALIDATION_FAILED_MISSING_${sourceName.toUpperCase()}`,
+          code,
           message: `${sourceName} is required.`,
           severity: "ERROR",
           sourceRowNumber: row.sourceRowNumber,
@@ -204,7 +221,7 @@ export function validateCompanySeedRows(
 
     if (row.apiRetrievable.toLowerCase() !== "yes") {
       issues.push({
-        code: "THEME_SEED_VALIDATION_WARNING_API_NOT_RETRIEVABLE",
+        code: THEME_REASON_CODES.SEED_VALIDATION_WARNING_API_NOT_RETRIEVABLE,
         message:
           "api_retrievable is not yes; the row remains validation-only until provider mapping proves it.",
         severity: "WARNING",
@@ -221,7 +238,7 @@ export function validateCompanySeedRows(
       issues.push(
         issueForRow(
           row,
-          "THEME_SEED_VALIDATION_WARNING_TICKER_NOT_IN_SECURITY_MASTER",
+          THEME_REASON_CODES.SEED_VALIDATION_WARNING_TICKER_NOT_IN_SECURITY_MASTER,
           `${row.ticker} cannot be mapped to the current security master.`,
         ),
       );
@@ -229,7 +246,7 @@ export function validateCompanySeedRows(
 
     if (!row.mustPassAlphaTrendGates) {
       issues.push({
-        code: "THEME_SEED_VALIDATION_WARNING_MISSING_GATE_REQUIREMENT",
+        code: THEME_REASON_CODES.SEED_VALIDATION_WARNING_MISSING_GATE_REQUIREMENT,
         message:
           "must_pass_alpha_trend_gates is missing; manual seed rows cannot bypass AlphaTrend gates.",
         severity: "WARNING",

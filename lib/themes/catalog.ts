@@ -290,21 +290,53 @@ function derivedInvalidationRules() {
 
 export function validateCatalogRow(row: ThemeCatalogCsvRow) {
   const issues: ThemeValidationIssue[] = [];
-  const requiredFields: Array<[keyof ThemeCatalogCsvRow, string]> = [
-    ["themeCode", "theme_id"],
-    ["themeName", "theme_name"],
-    ["themeMechanism", "theme_mechanism"],
-    ["directCategories", "direct_categories"],
-    ["excludedCategories", "excluded_categories"],
-    ["seedEtfs", "seed_etfs"],
-    ["defaultDashboardStatus", "default_dashboard_status"],
-    ["createdDate", "created_date"],
+  const requiredFields: Array<[keyof ThemeCatalogCsvRow, string, string]> = [
+    [
+      "themeCode",
+      "theme_id",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_THEME_ID,
+    ],
+    [
+      "themeName",
+      "theme_name",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_THEME_NAME,
+    ],
+    [
+      "themeMechanism",
+      "theme_mechanism",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_THEME_MECHANISM,
+    ],
+    [
+      "directCategories",
+      "direct_categories",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_DIRECT_CATEGORIES,
+    ],
+    [
+      "excludedCategories",
+      "excluded_categories",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_EXCLUDED_CATEGORIES,
+    ],
+    [
+      "seedEtfs",
+      "seed_etfs",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_SEED_ETFS,
+    ],
+    [
+      "defaultDashboardStatus",
+      "default_dashboard_status",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_DEFAULT_DASHBOARD_STATUS,
+    ],
+    [
+      "createdDate",
+      "created_date",
+      THEME_REASON_CODES.VALIDATION_FAILED_MISSING_CREATED_DATE,
+    ],
   ];
 
-  for (const [field, sourceName] of requiredFields) {
+  for (const [field, sourceName, code] of requiredFields) {
     if (!String(row[field] ?? "").trim()) {
       issues.push({
-        code: `THEME_VALIDATION_FAILED_MISSING_${sourceName.toUpperCase()}`,
+        code,
         message: `${sourceName} is required.`,
         severity: "ERROR",
         sourceRowNumber: row.sourceRowNumber,
@@ -315,7 +347,7 @@ export function validateCatalogRow(row: ThemeCatalogCsvRow) {
 
   if (row.createdDate && Number.isNaN(Date.parse(row.createdDate))) {
     issues.push({
-      code: "THEME_VALIDATION_FAILED_INVALID_CREATED_DATE",
+      code: THEME_REASON_CODES.VALIDATION_FAILED_INVALID_CREATED_DATE,
       message: `created_date is invalid: ${row.createdDate}`,
       severity: "ERROR",
       sourceRowNumber: row.sourceRowNumber,
@@ -328,7 +360,7 @@ export function validateCatalogRow(row: ThemeCatalogCsvRow) {
     !SUPPORTED_DEFAULT_DASHBOARD_STATUSES.has(row.defaultDashboardStatus)
   ) {
     issues.push({
-      code: "THEME_VALIDATION_FAILED_INVALID_DASHBOARD_STATUS",
+      code: THEME_REASON_CODES.VALIDATION_FAILED_INVALID_DASHBOARD_STATUS,
       message: `default_dashboard_status is not supported: ${row.defaultDashboardStatus}`,
       severity: "ERROR",
       sourceRowNumber: row.sourceRowNumber,
@@ -363,7 +395,7 @@ export function buildThemeDefinitionSeed(
   if (!curated) {
     warnings.push(
       {
-        code: "THEME_VALIDATION_WARNING_DERIVED_ECONOMIC_PROOF",
+        code: THEME_REASON_CODES.VALIDATION_WARNING_DERIVED_ECONOMIC_PROOF,
         message:
           "required_economic_proof is derived from the theme mechanism until this catalog theme is activated.",
         severity: "WARNING",
@@ -371,7 +403,7 @@ export function buildThemeDefinitionSeed(
         themeCode: row.themeCode,
       },
       {
-        code: "THEME_VALIDATION_WARNING_DERIVED_INVALIDATION_RULES",
+        code: THEME_REASON_CODES.VALIDATION_WARNING_DERIVED_INVALIDATION_RULES,
         message:
           "invalidation_rules are derived placeholders until this catalog theme is activated.",
         severity: "WARNING",
@@ -379,7 +411,7 @@ export function buildThemeDefinitionSeed(
         themeCode: row.themeCode,
       },
       {
-        code: "THEME_VALIDATION_WARNING_EMPTY_INDIRECT_CATEGORIES",
+        code: THEME_REASON_CODES.VALIDATION_WARNING_EMPTY_INDIRECT_CATEGORIES,
         message:
           "indirect_beneficiary_categories are empty until this catalog theme is manually curated.",
         severity: "WARNING",
@@ -532,7 +564,7 @@ export function validateThemeDefinitionSeed(
 
   if (!hasSeedSource) {
     issues.push({
-      code: "THEME_VALIDATION_FAILED_MISSING_SEED_SOURCE",
+      code: THEME_REASON_CODES.VALIDATION_FAILED_MISSING_SEED_SOURCE,
       message:
         "At least one of seed_etfs, candidate_industries, or candidate_screener_rules is required.",
       severity: "ERROR",
@@ -577,7 +609,7 @@ export function buildThemeCatalog(
 
     if (previousThemeCodeRow) {
       rowIssues.push({
-        code: "THEME_VALIDATION_FAILED_DUPLICATE_THEME_ID",
+        code: THEME_REASON_CODES.VALIDATION_FAILED_DUPLICATE_THEME_ID,
         message: `theme_id duplicates row ${previousThemeCodeRow}: ${row.themeCode}`,
         severity: "ERROR",
         sourceRowNumber: row.sourceRowNumber,
@@ -587,7 +619,7 @@ export function buildThemeCatalog(
 
     if (previousThemeSlugRow) {
       rowIssues.push({
-        code: "THEME_VALIDATION_FAILED_DUPLICATE_THEME_SLUG",
+        code: THEME_REASON_CODES.VALIDATION_FAILED_DUPLICATE_THEME_SLUG,
         message: `theme_name creates a duplicate slug from row ${previousThemeSlugRow}: ${themeSlug}`,
         severity: "ERROR",
         sourceRowNumber: row.sourceRowNumber,

@@ -6,6 +6,10 @@ import { describe, expect, it } from "vitest";
 import { buildThemeCatalog, normalizeThemeLabel } from "@/lib/themes/catalog";
 import { validateCompanySeedRows } from "@/lib/themes/company-seeds";
 import { parseCsv, splitSemicolonList } from "@/lib/themes/csv";
+import {
+  THEME_REASON_CODE_METADATA,
+  THEME_REASON_CODES,
+} from "@/lib/themes/reason-codes";
 
 const catalogPath = resolve(
   process.cwd(),
@@ -17,6 +21,23 @@ const companySeedPath = resolve(
 );
 
 describe("theme catalog CSV transform", () => {
+  it("registers display metadata for all emitted theme reason codes", () => {
+    const codes = Object.values(THEME_REASON_CODES);
+
+    expect(new Set(codes).size).toBe(codes.length);
+
+    for (const code of codes) {
+      expect(THEME_REASON_CODE_METADATA[code]).toMatchObject({
+        code,
+        description: expect.any(String),
+        displayLabel: expect.any(String),
+        severity: expect.stringMatching(
+          /^(INFO|POSITIVE|CAUTION|WARNING|BLOCKER)$/,
+        ),
+      });
+    }
+  });
+
   it("parses quoted CSV fields and semicolon lists deterministically", () => {
     const records = parseCsv(
       'theme_id,theme_name,theme_mechanism,seed_etfs\nT001,"AI, Compute","GPU, ASIC demand",SMH;SOXX;AIQ\n',

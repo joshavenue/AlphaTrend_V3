@@ -18,6 +18,21 @@ export type EvidenceGrade = "A" | "B" | "C" | "D";
 
 export type EvidenceReliability = EvidenceGrade;
 
+export type SecurityType =
+  | "COMMON_STOCK"
+  | "ADR"
+  | "ETF"
+  | "ETN"
+  | "CLOSED_END_FUND"
+  | "PREFERRED"
+  | "WARRANT"
+  | "RIGHT"
+  | "UNIT"
+  | "SPAC_UNIT"
+  | "INDEX"
+  | "FUND"
+  | "UNKNOWN";
+
 export type UniverseBucket =
   | "US_COMMON_ALL"
   | "US_COMMON_LIQUID"

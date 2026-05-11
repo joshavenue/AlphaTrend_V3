@@ -12,6 +12,7 @@ import {
   parseEiaRoutes,
   parseFmpCompanyScreener,
   parseFmpEtfHoldings,
+  parseFmpProfile,
   parseFmpRows,
   parseFredObservations,
   parseMassiveAggregateBars,
@@ -28,6 +29,7 @@ import {
   type FmpCompanyScreenerRow,
   type FmpEtfHolding,
   type FmpCompanyMetric,
+  type FmpCompanyProfile,
   type FredObservation,
   type MassiveAggregateBar,
   type MassiveTicker,
@@ -432,6 +434,43 @@ export async function fetchFmpIncomeStatement(
       },
     ),
     validate: requireRows<FmpCompanyMetric[]>("FMP income statement"),
+  });
+}
+
+export async function fetchFmpProfile(
+  context: ProviderCallContext,
+  ticker = "AAPL",
+): Promise<ProviderResult<FmpCompanyProfile[]>> {
+  const env = getEnv();
+  const endpoint = "profile";
+  const unconfigured = requireEnv<FmpCompanyProfile[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    entityId: ticker,
+    entityType: "ticker",
+    jobRunId: context.jobRunId,
+    parse: parseFmpProfile,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery("https://financialmodelingprep.com/stable/profile", {
+      apikey: env.FMP_API_KEY,
+      symbol: ticker,
+    }),
+    validate: requireRows<FmpCompanyProfile[]>("FMP profile"),
   });
 }
 

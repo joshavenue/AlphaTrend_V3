@@ -1,4 +1,5 @@
 import type { CandidateDbClient } from "@/lib/candidates/types";
+import { T1_SIGNAL_LAYER } from "@/lib/exposure/constants";
 
 export function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -52,6 +53,24 @@ export async function buildCandidateReport(
           universeBucket: true,
         },
       },
+      signalScores: {
+        orderBy: {
+          computedAt: "desc",
+        },
+        take: 1,
+        where: {
+          signalLayer: T1_SIGNAL_LAYER,
+        },
+      },
+      signalStates: {
+        orderBy: {
+          computedAt: "desc",
+        },
+        take: 1,
+        where: {
+          signalLayer: T1_SIGNAL_LAYER,
+        },
+      },
       theme: {
         select: {
           sourceThemeCode: true,
@@ -90,21 +109,32 @@ export async function buildCandidateReport(
   );
 
   return {
-    candidates: candidates.map((candidate) => ({
-      candidate_status: candidate.candidateStatus,
-      company_name: candidate.security.companyName,
-      dashboard_visible: candidate.dashboardVisible,
-      display_group: candidate.displayGroup,
-      exchange: candidate.security.exchange,
-      final_state: candidate.finalState,
-      security_type: candidate.security.securityType,
-      source_of_inclusion: candidate.sourceOfInclusion,
-      source_types: sourceTypes(candidate.sourceDetail),
-      theme: candidate.theme.sourceThemeCode,
-      theme_name: candidate.theme.themeName,
-      ticker: candidate.security.canonicalTicker,
-      universe_bucket: candidate.security.universeBucket,
-    })),
+    candidates: candidates.map((candidate) => {
+      const exposureScore = candidate.signalScores[0];
+      const exposureState = candidate.signalStates[0];
+
+      return {
+        beneficiary_type: candidate.beneficiaryType,
+        candidate_status: candidate.candidateStatus,
+        company_name: candidate.security.companyName,
+        dashboard_visible: candidate.dashboardVisible,
+        display_group: candidate.displayGroup,
+        exchange: candidate.security.exchange,
+        exposure_purity_score:
+          exposureScore?.score === null || exposureScore?.score === undefined
+            ? null
+            : Number(exposureScore.score),
+        exposure_state: exposureState?.state ?? null,
+        final_state: candidate.finalState,
+        security_type: candidate.security.securityType,
+        source_of_inclusion: candidate.sourceOfInclusion,
+        source_types: sourceTypes(candidate.sourceDetail),
+        theme: candidate.theme.sourceThemeCode,
+        theme_name: candidate.theme.themeName,
+        ticker: candidate.security.canonicalTicker,
+        universe_bucket: candidate.security.universeBucket,
+      };
+    }),
     dashboard_counts: dashboardCounts,
     source_counts: sourceCounts,
     status_counts: statusCounts,

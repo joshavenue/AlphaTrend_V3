@@ -57,6 +57,16 @@ export type FmpCompanyMetric = Record<string, unknown> & {
   date?: string;
 };
 
+export type FmpCompanyProfile = {
+  companyName?: string;
+  description?: string;
+  industry?: string;
+  marketCap?: number;
+  raw: Record<string, unknown>;
+  sector?: string;
+  symbol: string;
+};
+
 export type FmpEtfHolding = {
   asOfDate?: string;
   holdingName?: string;
@@ -401,6 +411,33 @@ export function parseOpenFigiMappings(payload: unknown): OpenFigiMapping[] {
 
 export function parseFmpRows(payload: unknown): FmpCompanyMetric[] {
   return asArray(payload).map((row) => asRecord(row) as FmpCompanyMetric);
+}
+
+export function parseFmpProfile(payload: unknown): FmpCompanyProfile[] {
+  return asArray(payload).flatMap((value) => {
+    const row = asRecord(value);
+    const symbol = firstString(row, ["symbol", "ticker"])?.toUpperCase();
+
+    if (!symbol) {
+      return [];
+    }
+
+    return [
+      {
+        companyName: firstString(row, ["companyName", "company_name", "name"]),
+        description: firstString(row, [
+          "description",
+          "profile",
+          "businessSummary",
+        ]),
+        industry: firstString(row, ["industry"]),
+        marketCap: firstNumber(row, ["marketCap", "market_cap", "mktCap"]),
+        raw: row,
+        sector: firstString(row, ["sector"]),
+        symbol,
+      },
+    ];
+  });
 }
 
 function firstString(row: Record<string, unknown>, keys: string[]) {

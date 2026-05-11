@@ -6,6 +6,7 @@ import {
   parseBeaDatasets,
   parseBlsObservations,
   parseEiaRoutes,
+  parseFmpProfile,
   parseFmpRows,
   parseFredObservations,
   parseMassiveAggregateBars,
@@ -139,6 +140,27 @@ describe("provider parsers", () => {
       expect.objectContaining({
         revenue: 1,
         symbol: "AAPL",
+      }),
+    ]);
+    expect(
+      parseFmpProfile([
+        {
+          companyName: "NVIDIA Corporation",
+          description: "Supplier of GPUs and AI accelerators.",
+          industry: "Semiconductors",
+          marketCap: "123456",
+          sector: "Technology",
+          symbol: "nvda",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        companyName: "NVIDIA Corporation",
+        description: "Supplier of GPUs and AI accelerators.",
+        industry: "Semiconductors",
+        marketCap: 123456,
+        sector: "Technology",
+        symbol: "NVDA",
       }),
     ]);
   });

@@ -236,6 +236,7 @@ export function manualSeedSourcesForTheme(
       details: {
         api_retrievable: row.apiRetrievable,
         api_validation_priority: row.apiValidationPriority,
+        beneficiary_type: row.beneficiaryType,
         candidate_rank_within_theme: row.candidateRankWithinTheme,
         candidate_role: row.candidateRole,
         initial_inclusion_method: row.initialInclusionMethod,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { errorEnvelope, successEnvelope } from "@/lib/api/envelope";
+import { isAuthResponse, requireApiSession } from "@/lib/auth/session";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { buildThemeCandidatesView } from "@/lib/snapshots/dashboard";
 import { parseFinalState, parsePositiveInt } from "@/lib/snapshots/query";
@@ -14,6 +15,11 @@ type RouteContext = {
 };
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  const auth = await requireApiSession(request);
+  if (isAuthResponse(auth)) {
+    return auth.response;
+  }
+
   const { themeId } = await context.params;
   const generatedAt = new Date().toISOString();
   const searchParams = request.nextUrl.searchParams;

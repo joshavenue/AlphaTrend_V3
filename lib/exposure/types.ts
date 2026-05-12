@@ -119,7 +119,7 @@ export type ExposureScoreResult = {
     metricName: string;
     metricValueText?: string;
     reasonCode: string;
-    scoreImpact: number;
+    scoreImpact?: number;
   }>;
   score: number;
   scoreDetail: ExposureScoreDetail;

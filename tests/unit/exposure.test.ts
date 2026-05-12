@@ -77,6 +77,11 @@ describe("Phase 6 T1 exposure scoring", () => {
     expect(result.scoreDetail.reason_codes).toContain(
       T1_REASON_CODES.KEYWORD_ONLY,
     );
+    expect(
+      result.evidenceDetails.find(
+        (detail) => detail.metricValueText === "keyword_only_cap",
+      ),
+    ).not.toHaveProperty("scoreImpact");
   });
 
   it("caps same-sector-only semiconductor matches at 39", () => {
@@ -154,6 +159,80 @@ describe("Phase 6 T1 exposure scoring", () => {
     expect(result.scoreDetail.reason_codes).toContain(
       T1_REASON_CODES.SEGMENT_DATA_MISSING,
     );
+    expect(
+      result.evidenceDetails.find(
+        (detail) => detail.metricName === "t1.exposure_purity_score",
+      ),
+    ).toMatchObject({
+      metricValueText: `DIRECT_BENEFICIARY:${result.score}`,
+    });
+  });
+
+  it("segment_missing_does_not_block_direct_business_line_but_caps_very_high_score", () => {
+    const result = scoreExposurePurity(
+      input({
+        candidate: {
+          sourceDetail: {
+            sources: [
+              {
+                details: {
+                  etf_symbol: "SMH",
+                },
+                source_key: "etf_holding:SMH:P6T",
+                source_type: "SEED_ETF_HOLDING",
+                source_weight: 2.1,
+                ticker: "P6T",
+              },
+              {
+                details: {
+                  etf_symbol: "SOXX",
+                },
+                source_key: "etf_holding:SOXX:P6T",
+                source_type: "SEED_ETF_HOLDING",
+                source_weight: 1.4,
+                ticker: "P6T",
+              },
+            ],
+          },
+          sourceOfInclusion: "SEED_ETF_HOLDING",
+          themeCandidateId: "00000000-0000-0000-0000-000000000006",
+        },
+        fmpProfile: {
+          description:
+            "A core supplier of GPU accelerators for hyperscale data center AI workloads.",
+          industry: "Semiconductors",
+          sector: "Technology",
+          symbol: "P6T",
+        },
+      }),
+    );
+
+    expect(result.score).toBeGreaterThanOrEqual(70);
+    expect(result.score).toBeLessThan(85);
+    expect(result.beneficiaryType).toBe("DIRECT_BENEFICIARY");
+    expect(result.scoreDetail.reason_codes).toContain(
+      T1_REASON_CODES.SEGMENT_DATA_MISSING,
+    );
+    expect(
+      result.evidenceDetails.find(
+        (detail) => detail.metricName === "t1.segment_disclosure_support",
+      ),
+    ).not.toHaveProperty("scoreImpact");
+  });
+
+  it("does not score company-name-only direct category similarity", () => {
+    const result = scoreExposurePurity(
+      input({
+        security: {
+          canonicalTicker: "P6T",
+          companyName: "GPU Holdings Inc.",
+        },
+      }),
+    );
+
+    expect(result.score).toBe(0);
+    expect(result.beneficiaryType).toBe("UNRELATED");
+    expect(result.scoreDetail.matched_categories.direct).toEqual([]);
   });
 
   it("rejects excluded generic AI software for the semiconductor theme", () => {

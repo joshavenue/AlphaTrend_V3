@@ -2,7 +2,6 @@ import type {
   BeneficiaryType,
   CandidateStatus,
 } from "@/generated/prisma/client";
-import { hashPayload } from "@/lib/evidence/hash";
 import {
   T1_CAPS,
   T1_DISPLAY_GROUPS,
@@ -348,6 +347,12 @@ function sourceIsSectorOnly(source: ExposureTextSource) {
   return source.label.includes("sector") || source.label.includes("industry");
 }
 
+function sourceIsCompanyNameOnly(source: ExposureTextSource) {
+  return (
+    source.kind === "company_name" || source.label.includes("company_name")
+  );
+}
+
 function sourceWeight(source: ExposureTextSource) {
   if (source.kind === "provider_profile") {
     return 4;
@@ -465,6 +470,10 @@ function categoryMatches(
   return uniqueMatches(
     categories.flatMap((category) =>
       sources.flatMap((source) => {
+        if (category.type !== "excluded" && sourceIsCompanyNameOnly(source)) {
+          return [];
+        }
+
         const match = matchCategory(category, source);
 
         return match ? [match] : [];
@@ -644,7 +653,7 @@ function computeComponents(input: ExposureScoringInput) {
     metricName: keyof ExposureScoreComponents;
     metricValueText?: string;
     reasonCode: string;
-    scoreImpact: number;
+    scoreImpact?: number;
   }> = [];
 
   if (providerDirectBusinessLineMatches.length > 0) {
@@ -752,7 +761,6 @@ function computeComponents(input: ExposureScoringInput) {
   componentReasons.push({
     metricName: "segment_disclosure_support",
     reasonCode: T1_REASON_CODES.SEGMENT_DATA_MISSING,
-    scoreImpact: 0,
   });
 
   if (etfScore.score > 0) {
@@ -1046,7 +1054,9 @@ export function scoreExposurePurity(
       metricName: `t1.${detail.metricName}`,
       metricValueText: detail.metricValueText,
       reasonCode: detail.reasonCode,
-      scoreImpact: detail.scoreImpact,
+      ...(detail.scoreImpact === undefined
+        ? {}
+        : { scoreImpact: detail.scoreImpact }),
     })),
     ...capsApplied.map((cap) => ({
       metricName: "t1.score_cap",
@@ -1059,11 +1069,10 @@ export function scoreExposurePurity(
             : cap === "keyword_only_cap"
               ? T1_REASON_CODES.KEYWORD_ONLY
               : T1_REASON_CODES.NARRATIVE_ADJACENT,
-      scoreImpact: 0,
     })),
     {
       metricName: "t1.exposure_purity_score",
-      metricValueText: hashPayload(scoreDetail),
+      metricValueText: `${beneficiaryType}:${score}`,
       reasonCode: reasonCodes[0] ?? T1_REASON_CODES.NARRATIVE_ADJACENT,
       scoreImpact: score,
     },

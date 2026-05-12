@@ -1,11 +1,6 @@
 import type { ExposureDbClient } from "@/lib/exposure/types";
 import { T1_SIGNAL_LAYER } from "@/lib/exposure/constants";
-
-export function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
-}
+import { isUuid } from "@/lib/util/uuid";
 
 function groupCounts<T extends string>(values: T[]) {
   return values.reduce<Record<string, number>>((counts, value) => {

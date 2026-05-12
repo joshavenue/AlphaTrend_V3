@@ -121,6 +121,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             candidateStatus: "REVIEW_REQUIRED",
             dashboardVisible: false,
             displayGroup: "Unclassified",
+            finalState: "WATCHLIST_ONLY",
             securityId,
             sourceDetail: {
               generator_version: "test",
@@ -164,7 +165,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
           beneficiaryType: "INDIRECT_BENEFICIARY",
           candidateStatus: "REVIEW_REQUIRED",
           dashboardVisible: false,
-          finalState: null,
+          finalState: "WATCHLIST_ONLY",
         });
 
         const signalScore = await prisma.candidateSignalScore.findFirst({

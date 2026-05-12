@@ -20,6 +20,7 @@ import type {
   ExposureScoringSummary,
   ExposureThemeSummary,
 } from "@/lib/exposure/types";
+import { isUuid } from "@/lib/util/uuid";
 
 const DEFAULT_COMPANY_SEED_PATH = resolve(
   process.cwd(),
@@ -35,12 +36,6 @@ const ACTIVE_THEME_STATUSES = [
 type CandidateForScoring = Awaited<
   ReturnType<typeof loadCandidatesForScoring>
 >[number];
-
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
-}
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -353,7 +348,6 @@ async function persistExposureScore(
       candidateStatus: score.candidateStatus,
       dashboardVisible: hasProviderSource(candidate.sourceDetail),
       displayGroup: score.displayGroup,
-      finalState: null,
       lastScannedAt: now,
     },
     where: {
@@ -545,7 +539,7 @@ export async function scoreThemeExposure(
         score,
       );
       evidenceWritten += candidateEvidenceWritten;
-      rowsWritten += candidateEvidenceWritten + 3;
+      rowsWritten += candidateEvidenceWritten + 4;
 
       const summary =
         themeSummaries.get(candidate.theme.themeId) ??

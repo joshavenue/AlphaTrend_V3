@@ -106,7 +106,6 @@ export async function persistCandidateSources(
           candidateStatus: "REVIEW_REQUIRED",
           dashboardVisible,
           displayGroup: "Unclassified",
-          finalState: null,
           lastSeenAt: now,
           sourceDetail: toJsonValue(mergedSourceDetail),
           sourceOfInclusion,

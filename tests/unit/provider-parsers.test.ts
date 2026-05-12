@@ -14,6 +14,8 @@ import {
   parseNasdaqListedSymbols,
   parseOpenFigiMappings,
   parseOtherListedSymbols,
+  parseSecCompanyFactsPayload,
+  parseSecCompanySubmissions,
   parseSecCompanyTickers,
   parseUsaSpendingAwards,
 } from "@/lib/providers/parsers";
@@ -44,6 +46,63 @@ describe("provider parsers", () => {
         },
       }),
     ).toContain("RevenueFromContractWithCustomerExcludingAssessedTax");
+
+    expect(
+      parseSecCompanyFactsPayload({
+        cik: "0000320193",
+        entityName: "Apple Inc.",
+        facts: {
+          "us-gaap": {
+            RevenueFromContractWithCustomerExcludingAssessedTax: {
+              units: {
+                USD: [
+                  {
+                    end: "2026-03-31",
+                    filed: "2026-04-30",
+                    form: "10-Q",
+                    fp: "Q2",
+                    frame: "CY2026Q1",
+                    fy: 2026,
+                    start: "2026-01-01",
+                    val: 123,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      }).facts,
+    ).toEqual([
+      expect.objectContaining({
+        end: "2026-03-31",
+        fiscalPeriod: "Q2",
+        fiscalYear: 2026,
+        tag: "RevenueFromContractWithCustomerExcludingAssessedTax",
+        unit: "USD",
+        value: 123,
+      }),
+    ]);
+
+    expect(
+      parseSecCompanySubmissions({
+        filings: {
+          recent: {
+            accessionNumber: ["0000320193-26-000001"],
+            filingDate: ["2026-04-30"],
+            form: ["10-Q"],
+            primaryDocument: ["aapl-20260331.htm"],
+            reportDate: ["2026-03-31"],
+          },
+        },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        accessionNumber: "0000320193-26-000001",
+        filingDate: "2026-04-30",
+        form: "10-Q",
+        reportDate: "2026-03-31",
+      }),
+    ]);
   });
 
   it("parses Nasdaq pipe-delimited symbol files without the footer row", () => {

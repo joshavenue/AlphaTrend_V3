@@ -38,6 +38,13 @@ export const providerEndpointRegistry: ProviderEndpointDefinition[] = [
     requiredForPhase: 2,
   },
   {
+    description: "SEC company submissions and recent filing timeline",
+    endpoint: "submissions",
+    envKey: "SEC_USER_AGENT",
+    provider: "SEC",
+    requiredForPhase: 7,
+  },
+  {
     description: "Nasdaq Trader Nasdaq-listed symbol directory",
     endpoint: "nasdaqlisted",
     envKey: null,
@@ -85,6 +92,27 @@ export const providerEndpointRegistry: ProviderEndpointDefinition[] = [
     envKey: "FMP_API_KEY",
     provider: "FMP",
     requiredForPhase: 2,
+  },
+  {
+    description: "FMP balance sheet statement",
+    endpoint: "balance_sheet_statement",
+    envKey: "FMP_API_KEY",
+    provider: "FMP",
+    requiredForPhase: 7,
+  },
+  {
+    description: "FMP cash flow statement",
+    endpoint: "cash_flow_statement",
+    envKey: "FMP_API_KEY",
+    provider: "FMP",
+    requiredForPhase: 7,
+  },
+  {
+    description: "FMP financial ratios",
+    endpoint: "ratios",
+    envKey: "FMP_API_KEY",
+    provider: "FMP",
+    requiredForPhase: 7,
   },
   {
     description: "FMP ETF holdings",

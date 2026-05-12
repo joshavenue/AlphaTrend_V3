@@ -57,6 +57,34 @@ export type FmpCompanyMetric = Record<string, unknown> & {
   date?: string;
 };
 
+export type SecCompanyFactUnit = {
+  end?: string;
+  filed?: string;
+  fiscalPeriod?: string;
+  fiscalYear?: number;
+  form?: string;
+  frame?: string;
+  start?: string;
+  tag: string;
+  unit: string;
+  value: number;
+};
+
+export type SecCompanyFacts = {
+  cik?: string;
+  entityName?: string;
+  facts: SecCompanyFactUnit[];
+  revenueFactTags: string[];
+};
+
+export type SecCompanySubmission = {
+  accessionNumber?: string;
+  filingDate?: string;
+  form?: string;
+  primaryDocument?: string;
+  reportDate?: string;
+};
+
 export type FmpCompanyProfile = {
   companyName?: string;
   description?: string;
@@ -270,6 +298,77 @@ export function findSecRevenueFactTags(payload: unknown) {
   ];
 
   return revenueTags.filter((tag) => Boolean(usGaap[tag]));
+}
+
+export function parseSecCompanyFactsPayload(payload: unknown): SecCompanyFacts {
+  const record = asRecord(payload);
+  const facts = asRecord(record.facts);
+  const usGaap = asRecord(facts["us-gaap"]);
+  const parsedFacts: SecCompanyFactUnit[] = [];
+
+  for (const [tag, tagPayload] of Object.entries(usGaap)) {
+    const units = asRecord(asRecord(tagPayload).units);
+
+    for (const [unit, rows] of Object.entries(units)) {
+      for (const value of asArray(rows)) {
+        const row = asRecord(value);
+        const numericValue = asNumber(row.val);
+
+        if (numericValue === undefined) {
+          continue;
+        }
+
+        parsedFacts.push({
+          end: asString(row.end),
+          filed: asString(row.filed),
+          fiscalPeriod: asString(row.fp),
+          fiscalYear: asNumber(row.fy),
+          form: asString(row.form),
+          frame: asString(row.frame),
+          start: asString(row.start),
+          tag,
+          unit,
+          value: numericValue,
+        });
+      }
+    }
+  }
+
+  return {
+    cik: asString(record.cik),
+    entityName: asString(record.entityName),
+    facts: parsedFacts,
+    revenueFactTags: findSecRevenueFactTags(payload),
+  };
+}
+
+export function parseSecCompanySubmissions(
+  payload: unknown,
+): SecCompanySubmission[] {
+  const recent = asRecord(asRecord(asRecord(payload).filings).recent);
+  const accessionNumbers = asArray(recent.accessionNumber);
+  const forms = asArray(recent.form);
+  const filingDates = asArray(recent.filingDate);
+  const reportDates = asArray(recent.reportDate);
+  const primaryDocuments = asArray(recent.primaryDocument);
+
+  return accessionNumbers.flatMap((value, index) => {
+    const accessionNumber = asString(value);
+
+    if (!accessionNumber) {
+      return [];
+    }
+
+    return [
+      {
+        accessionNumber,
+        filingDate: asString(filingDates[index]),
+        form: asString(forms[index]),
+        primaryDocument: asString(primaryDocuments[index]),
+        reportDate: asString(reportDates[index]),
+      },
+    ];
+  });
 }
 
 export function parseNasdaqListedSymbols(text: string): NasdaqSymbol[] {

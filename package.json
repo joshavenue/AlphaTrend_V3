@@ -31,6 +31,8 @@
     "candidates:report": "tsx scripts/candidates-report.ts",
     "exposure:score": "tsx scripts/exposure-score.ts",
     "exposure:report": "tsx scripts/exposure-report.ts",
+    "fundamentals:score": "tsx scripts/fundamentals-score.ts",
+    "fundamentals:report": "tsx scripts/fundamentals-report.ts",
     "job:theme-scan": "tsx scripts/placeholder-job.ts theme-scan",
     "job:snapshots": "tsx scripts/placeholder-job.ts snapshots",
     "job:alerts": "tsx scripts/placeholder-job.ts alerts",

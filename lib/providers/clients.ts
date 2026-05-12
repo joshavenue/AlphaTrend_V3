@@ -14,6 +14,8 @@ import {
   parseFmpEtfHoldings,
   parseFmpProfile,
   parseFmpRows,
+  parseSecCompanyFactsPayload,
+  parseSecCompanySubmissions,
   parseFredObservations,
   parseMassiveAggregateBars,
   parseMassiveTickers,
@@ -35,6 +37,8 @@ import {
   type MassiveTicker,
   type NasdaqSymbol,
   type OpenFigiMapping,
+  type SecCompanyFacts,
+  type SecCompanySubmission,
   type SecCompanyTicker,
   type UsaSpendingAward,
 } from "@/lib/providers/parsers";
@@ -50,6 +54,11 @@ type ProviderCallContext = {
   jobRunId?: string;
   timeoutMs?: number;
   retryCount?: number;
+};
+
+type FmpPeriodOptions = {
+  limit?: number;
+  period?: "annual" | "quarter";
 };
 
 function requireEnv<T>(
@@ -95,6 +104,13 @@ function daysAgoIso(days: number) {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
+}
+
+function fmpPeriodParams(options: FmpPeriodOptions = {}) {
+  return {
+    limit: options.limit === undefined ? undefined : String(options.limit),
+    period: options.period,
+  };
 }
 
 function requireRows<T extends { length: number }>(label: string) {
@@ -178,6 +194,85 @@ export async function fetchSecCompanyFacts(
       data.revenueFactTags.length > 0
         ? undefined
         : "SEC companyfacts returned no revenue-like tags",
+  });
+}
+
+export async function fetchSecFundamentalCompanyFacts(
+  context: ProviderCallContext,
+  cik: string,
+): Promise<ProviderResult<SecCompanyFacts>> {
+  const env = getEnv();
+  const endpoint = "companyfacts";
+  const unconfigured = requireEnv<SecCompanyFacts>(
+    context,
+    "SEC",
+    endpoint,
+    "SEC_USER_AGENT",
+    env.SEC_USER_AGENT,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  const paddedCik = cik.padStart(10, "0");
+
+  return providerFetch({
+    endpoint,
+    entityId: paddedCik,
+    entityType: "cik",
+    headers: {
+      "User-Agent": env.SEC_USER_AGENT,
+    },
+    jobRunId: context.jobRunId,
+    parse: parseSecCompanyFactsPayload,
+    prisma: context.prisma,
+    provider: "SEC",
+    retryCount: context.retryCount,
+    rowCount: (data) => data.facts.length,
+    timeoutMs: context.timeoutMs,
+    url: `https://data.sec.gov/api/xbrl/companyfacts/CIK${paddedCik}.json`,
+    validate: (data) =>
+      data.facts.length > 0 ? undefined : "SEC companyfacts returned no facts",
+  });
+}
+
+export async function fetchSecCompanySubmissions(
+  context: ProviderCallContext,
+  cik: string,
+): Promise<ProviderResult<SecCompanySubmission[]>> {
+  const env = getEnv();
+  const endpoint = "submissions";
+  const unconfigured = requireEnv<SecCompanySubmission[]>(
+    context,
+    "SEC",
+    endpoint,
+    "SEC_USER_AGENT",
+    env.SEC_USER_AGENT,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  const paddedCik = cik.padStart(10, "0");
+
+  return providerFetch({
+    endpoint,
+    entityId: paddedCik,
+    entityType: "cik",
+    headers: {
+      "User-Agent": env.SEC_USER_AGENT,
+    },
+    jobRunId: context.jobRunId,
+    parse: parseSecCompanySubmissions,
+    prisma: context.prisma,
+    provider: "SEC",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: `https://data.sec.gov/submissions/CIK${paddedCik}.json`,
+    validate: requireRows<SecCompanySubmission[]>("SEC submissions"),
   });
 }
 
@@ -363,6 +458,7 @@ export async function mapOpenFigiTickers(
 export async function fetchFmpKeyMetrics(
   context: ProviderCallContext,
   ticker = "AAPL",
+  options: FmpPeriodOptions = {},
 ): Promise<ProviderResult<FmpCompanyMetric[]>> {
   const env = getEnv();
   const endpoint = "key_metrics";
@@ -391,6 +487,7 @@ export async function fetchFmpKeyMetrics(
     timeoutMs: context.timeoutMs,
     url: withQuery("https://financialmodelingprep.com/stable/key-metrics", {
       apikey: env.FMP_API_KEY,
+      ...fmpPeriodParams(options),
       symbol: ticker,
     }),
     validate: requireRows<FmpCompanyMetric[]>("FMP key metrics"),
@@ -400,6 +497,7 @@ export async function fetchFmpKeyMetrics(
 export async function fetchFmpIncomeStatement(
   context: ProviderCallContext,
   ticker = "AAPL",
+  options: FmpPeriodOptions = {},
 ): Promise<ProviderResult<FmpCompanyMetric[]>> {
   const env = getEnv();
   const endpoint = "income_statement";
@@ -430,10 +528,134 @@ export async function fetchFmpIncomeStatement(
       "https://financialmodelingprep.com/stable/income-statement",
       {
         apikey: env.FMP_API_KEY,
+        ...fmpPeriodParams(options),
         symbol: ticker,
       },
     ),
     validate: requireRows<FmpCompanyMetric[]>("FMP income statement"),
+  });
+}
+
+export async function fetchFmpBalanceSheetStatement(
+  context: ProviderCallContext,
+  ticker = "AAPL",
+  options: FmpPeriodOptions = {},
+): Promise<ProviderResult<FmpCompanyMetric[]>> {
+  const env = getEnv();
+  const endpoint = "balance_sheet_statement";
+  const unconfigured = requireEnv<FmpCompanyMetric[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    entityId: ticker,
+    entityType: "ticker",
+    jobRunId: context.jobRunId,
+    parse: parseFmpRows,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery(
+      "https://financialmodelingprep.com/stable/balance-sheet-statement",
+      {
+        apikey: env.FMP_API_KEY,
+        ...fmpPeriodParams(options),
+        symbol: ticker,
+      },
+    ),
+    validate: requireRows<FmpCompanyMetric[]>("FMP balance sheet statement"),
+  });
+}
+
+export async function fetchFmpCashFlowStatement(
+  context: ProviderCallContext,
+  ticker = "AAPL",
+  options: FmpPeriodOptions = {},
+): Promise<ProviderResult<FmpCompanyMetric[]>> {
+  const env = getEnv();
+  const endpoint = "cash_flow_statement";
+  const unconfigured = requireEnv<FmpCompanyMetric[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    entityId: ticker,
+    entityType: "ticker",
+    jobRunId: context.jobRunId,
+    parse: parseFmpRows,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery(
+      "https://financialmodelingprep.com/stable/cash-flow-statement",
+      {
+        apikey: env.FMP_API_KEY,
+        ...fmpPeriodParams(options),
+        symbol: ticker,
+      },
+    ),
+    validate: requireRows<FmpCompanyMetric[]>("FMP cash flow statement"),
+  });
+}
+
+export async function fetchFmpRatios(
+  context: ProviderCallContext,
+  ticker = "AAPL",
+  options: FmpPeriodOptions = {},
+): Promise<ProviderResult<FmpCompanyMetric[]>> {
+  const env = getEnv();
+  const endpoint = "ratios";
+  const unconfigured = requireEnv<FmpCompanyMetric[]>(
+    context,
+    "FMP",
+    endpoint,
+    "FMP_API_KEY",
+    env.FMP_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    entityId: ticker,
+    entityType: "ticker",
+    jobRunId: context.jobRunId,
+    parse: parseFmpRows,
+    prisma: context.prisma,
+    provider: "FMP",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery("https://financialmodelingprep.com/stable/ratios", {
+      apikey: env.FMP_API_KEY,
+      ...fmpPeriodParams(options),
+      symbol: ticker,
+    }),
+    validate: requireRows<FmpCompanyMetric[]>("FMP ratios"),
   });
 }
 

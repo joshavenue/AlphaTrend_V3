@@ -8,6 +8,11 @@ import type {
   WatchlistStatus,
   WatchType,
 } from "@/generated/prisma/client";
+import {
+  decodePageCursor,
+  pageRows,
+  type PaginationMeta,
+} from "@/lib/api/pagination";
 import { getPrismaClient } from "@/lib/db/prisma";
 import { T8_SIGNAL_LAYER } from "@/lib/expression/constants";
 import { T1_SIGNAL_LAYER } from "@/lib/exposure/constants";
@@ -42,6 +47,16 @@ function dateIso(value?: Date | null) {
 
 function dateOnlyIso(value?: Date | null) {
   return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function cursorDate(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function stringArray(value: unknown) {
@@ -122,6 +137,7 @@ function serializeCandidateReport(candidate: {
     state: string;
   }[];
   sourceOfInclusion: string;
+  themeCandidateId: string;
   tickerReviewPriorityScore: unknown;
   topFailReason: string | null;
   topPassReason: string | null;
@@ -148,6 +164,7 @@ function serializeCandidateReport(candidate: {
       latestStates.map(([layer, state]) => [layer, serializeSignal(state)]),
     ),
     source_of_inclusion: candidate.sourceOfInclusion,
+    theme_candidate_id: candidate.themeCandidateId,
     top_fail_reason: candidate.topFailReason,
     top_pass_reason: candidate.topPassReason,
   };
@@ -234,6 +251,11 @@ function serializeEvidence(row: {
     theme_id: row.themeId,
   };
 }
+
+type ReadPage<T> = {
+  pagination: PaginationMeta;
+  rows: T[];
+};
 
 export async function searchSecurities(query: string, limit = 8) {
   const q = query.trim();
@@ -420,14 +442,18 @@ export async function buildTickerReport(input: {
 }
 
 export async function buildEvidencePage(input: {
+  cursor?: string | null;
   limit?: number;
   metricName?: string | null;
   provider?: ProviderName | null;
   reasonCode?: string | null;
   securityId?: string | null;
   themeId?: string | null;
-}) {
+}): Promise<ReadPage<ReturnType<typeof serializeEvidence>>> {
   const prisma = getPrismaClient();
+  const limit = limited(input.limit);
+  const cursor = decodePageCursor(input.cursor);
+  const fetchedCursor = cursorDate(cursor?.sort);
   const theme = input.themeId
     ? await prisma.themeDefinition.findFirst({
         select: {
@@ -467,12 +493,29 @@ export async function buildEvidencePage(input: {
         fetchedAt: "desc",
       },
       {
-        createdAt: "desc",
+        evidenceId: "desc",
       },
     ],
-    take: limited(input.limit),
+    take: limit + 1,
     where: {
       metricName: input.metricName ?? undefined,
+      ...(cursor && fetchedCursor
+        ? {
+            OR: [
+              {
+                fetchedAt: {
+                  lt: fetchedCursor,
+                },
+              },
+              {
+                evidenceId: {
+                  lt: cursor.id,
+                },
+                fetchedAt: fetchedCursor,
+              },
+            ],
+          }
+        : {}),
       provider: input.provider ?? undefined,
       reasonCode: input.reasonCode ?? undefined,
       securityId: security?.securityId ?? undefined,
@@ -480,23 +523,44 @@ export async function buildEvidencePage(input: {
     },
   });
 
-  return rows.map(serializeEvidence);
+  const page = pageRows(rows, limit, (row) => ({
+    id: row.evidenceId,
+    sort: row.fetchedAt.toISOString(),
+  }));
+
+  return {
+    pagination: page.pagination,
+    rows: page.rows.map(serializeEvidence),
+  };
 }
 
 export async function buildAlertsPage(input: {
+  cursor?: string | null;
   deliveryStatus?: AlertDeliveryStatus | null;
   limit?: number;
   readStatus?: "read" | "unread" | null;
+  securityId?: string | null;
   severity?: AlertSeverity | null;
   themeId?: string | null;
 }) {
   const prisma = getPrismaClient();
+  const limit = limited(input.limit);
+  const cursor = decodePageCursor(input.cursor);
+  const createdCursor = cursorDate(cursor?.sort);
   const theme = input.themeId
     ? await prisma.themeDefinition.findFirst({
         select: {
           themeId: true,
         },
         where: themeWhere(input.themeId),
+      })
+    : null;
+  const security = input.securityId
+    ? await prisma.security.findFirst({
+        select: {
+          securityId: true,
+        },
+        where: securityWhere(input.securityId),
       })
     : null;
   const rows = await prisma.alert.findMany({
@@ -517,13 +581,35 @@ export async function buildAlertsPage(input: {
         },
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: limited(input.limit),
+    orderBy: [
+      {
+        createdAt: "desc",
+      },
+      {
+        alertId: "desc",
+      },
+    ],
+    take: limit + 1,
     where: {
       deliveryStatus: input.deliveryStatus ?? undefined,
       dismissedAt: null,
+      ...(cursor && createdCursor
+        ? {
+            OR: [
+              {
+                createdAt: {
+                  lt: createdCursor,
+                },
+              },
+              {
+                alertId: {
+                  lt: cursor.id,
+                },
+                createdAt: createdCursor,
+              },
+            ],
+          }
+        : {}),
       readAt:
         input.readStatus === "read"
           ? {
@@ -532,39 +618,48 @@ export async function buildAlertsPage(input: {
           : input.readStatus === "unread"
             ? null
             : undefined,
+      securityId: security?.securityId ?? undefined,
       severity: input.severity ?? undefined,
       themeId: theme?.themeId ?? undefined,
     },
   });
 
-  return rows.map((row) => ({
-    alert_id: row.alertId,
-    alert_type: row.alertType,
-    created_at: row.createdAt.toISOString(),
-    delivery_status: row.deliveryStatus,
-    dismissed_at: dateIso(row.dismissedAt),
-    message: row.message,
-    read_at: dateIso(row.readAt),
-    reason_codes: stringArray(row.reasonCodes),
-    security: row.security
-      ? {
-          company_name: row.security.companyName,
-          security_id: row.security.securityId,
-          ticker: row.security.canonicalTicker,
-        }
-      : null,
-    sent_at: dateIso(row.sentAt),
-    severity: row.severity,
-    theme: row.theme
-      ? {
-          source_theme_code: row.theme.sourceThemeCode,
-          theme_id: row.theme.themeId,
-          theme_name: row.theme.themeName,
-          theme_slug: row.theme.themeSlug,
-        }
-      : null,
-    title: row.title,
+  const page = pageRows(rows, limit, (row) => ({
+    id: row.alertId,
+    sort: row.createdAt.toISOString(),
   }));
+
+  return {
+    pagination: page.pagination,
+    rows: page.rows.map((row) => ({
+      alert_id: row.alertId,
+      alert_type: row.alertType,
+      created_at: row.createdAt.toISOString(),
+      delivery_status: row.deliveryStatus,
+      dismissed_at: dateIso(row.dismissedAt),
+      message: row.message,
+      read_at: dateIso(row.readAt),
+      reason_codes: stringArray(row.reasonCodes),
+      security: row.security
+        ? {
+            company_name: row.security.companyName,
+            security_id: row.security.securityId,
+            ticker: row.security.canonicalTicker,
+          }
+        : null,
+      sent_at: dateIso(row.sentAt),
+      severity: row.severity,
+      theme: row.theme
+        ? {
+            source_theme_code: row.theme.sourceThemeCode,
+            theme_id: row.theme.themeId,
+            theme_name: row.theme.themeName,
+            theme_slug: row.theme.themeSlug,
+          }
+        : null,
+      title: row.title,
+    })),
+  };
 }
 
 export async function buildUnreadAlertCount() {
@@ -597,6 +692,7 @@ export async function buildUnreadAlertCount() {
 }
 
 export async function buildWatchlistPage(input: {
+  cursor?: string | null;
   limit?: number;
   securityId?: string | null;
   status?: WatchlistStatus | null;
@@ -605,6 +701,25 @@ export async function buildWatchlistPage(input: {
   watchType?: WatchType | null;
 }) {
   const prisma = getPrismaClient();
+  const limit = limited(input.limit);
+  const cursor = decodePageCursor(input.cursor);
+  const updatedCursor = cursorDate(cursor?.sort);
+  const theme = input.themeId
+    ? await prisma.themeDefinition.findFirst({
+        select: {
+          themeId: true,
+        },
+        where: themeWhere(input.themeId),
+      })
+    : null;
+  const security = input.securityId
+    ? await prisma.security.findFirst({
+        select: {
+          securityId: true,
+        },
+        where: securityWhere(input.securityId),
+      })
+    : null;
   const rows = await prisma.watchlistItem.findMany({
     include: {
       security: {
@@ -623,44 +738,74 @@ export async function buildWatchlistPage(input: {
         },
       },
     },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: limited(input.limit),
+    orderBy: [
+      {
+        updatedAt: "desc",
+      },
+      {
+        watchlistItemId: "desc",
+      },
+    ],
+    take: limit + 1,
     where: {
-      securityId: input.securityId ?? undefined,
+      ...(cursor && updatedCursor
+        ? {
+            OR: [
+              {
+                updatedAt: {
+                  lt: updatedCursor,
+                },
+              },
+              {
+                updatedAt: updatedCursor,
+                watchlistItemId: {
+                  lt: cursor.id,
+                },
+              },
+            ],
+          }
+        : {}),
+      securityId: security?.securityId ?? undefined,
       status: input.status ?? "ACTIVE",
-      themeId: input.themeId ?? undefined,
+      themeId: theme?.themeId ?? undefined,
       userId: input.userId,
       watchType: input.watchType ?? undefined,
     },
   });
 
-  return rows.map((row) => ({
-    archived_at: dateIso(row.archivedAt),
-    created_at: row.createdAt.toISOString(),
-    notes: row.notes,
-    security: row.security
-      ? {
-          company_name: row.security.companyName,
-          security_id: row.security.securityId,
-          ticker: row.security.canonicalTicker,
-        }
-      : null,
-    status: row.status,
-    theme: row.theme
-      ? {
-          source_theme_code: row.theme.sourceThemeCode,
-          theme_id: row.theme.themeId,
-          theme_name: row.theme.themeName,
-          theme_slug: row.theme.themeSlug,
-        }
-      : null,
-    theme_candidate_id: row.themeCandidateId,
-    updated_at: row.updatedAt.toISOString(),
-    watch_type: row.watchType,
-    watchlist_item_id: row.watchlistItemId,
+  const page = pageRows(rows, limit, (row) => ({
+    id: row.watchlistItemId,
+    sort: row.updatedAt.toISOString(),
   }));
+
+  return {
+    pagination: page.pagination,
+    rows: page.rows.map((row) => ({
+      archived_at: dateIso(row.archivedAt),
+      created_at: row.createdAt.toISOString(),
+      notes: row.notes,
+      security: row.security
+        ? {
+            company_name: row.security.companyName,
+            security_id: row.security.securityId,
+            ticker: row.security.canonicalTicker,
+          }
+        : null,
+      status: row.status,
+      theme: row.theme
+        ? {
+            source_theme_code: row.theme.sourceThemeCode,
+            theme_id: row.theme.themeId,
+            theme_name: row.theme.themeName,
+            theme_slug: row.theme.themeSlug,
+          }
+        : null,
+      theme_candidate_id: row.themeCandidateId,
+      updated_at: row.updatedAt.toISOString(),
+      watch_type: row.watchType,
+      watchlist_item_id: row.watchlistItemId,
+    })),
+  };
 }
 
 export async function buildProviderHealth() {
@@ -737,10 +882,14 @@ export async function buildProviderHealth() {
 }
 
 export async function buildJobRuns(input: {
+  cursor?: string | null;
   jobType?: JobType | null;
   limit?: number;
   status?: JobStatus | null;
 }) {
+  const limit = limited(input.limit);
+  const cursor = decodePageCursor(input.cursor);
+  const startedCursor = cursorDate(cursor?.sort);
   const rows = await getPrismaClient().jobRun.findMany({
     include: {
       _count: {
@@ -749,28 +898,58 @@ export async function buildJobRuns(input: {
         },
       },
     },
-    orderBy: {
-      startedAt: "desc",
-    },
-    take: limited(input.limit),
+    orderBy: [
+      {
+        startedAt: "desc",
+      },
+      {
+        jobRunId: "desc",
+      },
+    ],
+    take: limit + 1,
     where: {
       jobType: input.jobType ?? undefined,
+      ...(cursor && startedCursor
+        ? {
+            OR: [
+              {
+                startedAt: {
+                  lt: startedCursor,
+                },
+              },
+              {
+                jobRunId: {
+                  lt: cursor.id,
+                },
+                startedAt: startedCursor,
+              },
+            ],
+          }
+        : {}),
       status: input.status ?? undefined,
     },
   });
 
-  return rows.map((row) => ({
-    error_summary: row.errorSummary,
-    finished_at: dateIso(row.finishedAt),
-    item_count: row._count.jobItems,
-    job_run_id: row.jobRunId,
-    job_type: row.jobType,
-    provider_calls: row.providerCalls,
-    rows_read: row.rowsRead,
-    rows_written: row.rowsWritten,
-    scope_id: row.scopeId,
-    scope_type: row.scopeType,
-    started_at: row.startedAt.toISOString(),
-    status: row.status,
+  const page = pageRows(rows, limit, (row) => ({
+    id: row.jobRunId,
+    sort: row.startedAt.toISOString(),
   }));
+
+  return {
+    pagination: page.pagination,
+    rows: page.rows.map((row) => ({
+      error_summary: row.errorSummary,
+      finished_at: dateIso(row.finishedAt),
+      item_count: row._count.jobItems,
+      job_run_id: row.jobRunId,
+      job_type: row.jobType,
+      provider_calls: row.providerCalls,
+      rows_read: row.rowsRead,
+      rows_written: row.rowsWritten,
+      scope_id: row.scopeId,
+      scope_type: row.scopeType,
+      started_at: row.startedAt.toISOString(),
+      status: row.status,
+    })),
+  };
 }

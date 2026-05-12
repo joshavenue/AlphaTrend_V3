@@ -4,14 +4,14 @@ import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 type JobTriggerButtonProps = {
-  jobType?: "THEME_SCAN" | "THEME_SNAPSHOT";
+  jobType?: "THEME_SNAPSHOT";
   label?: string;
   scopeId?: string;
   scopeType?: "theme";
 };
 
 export function JobTriggerButton({
-  jobType = "THEME_SCAN",
+  jobType = "THEME_SNAPSHOT",
   label = "Refresh snapshot",
   scopeId,
   scopeType,

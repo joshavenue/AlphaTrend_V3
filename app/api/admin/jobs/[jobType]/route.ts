@@ -37,7 +37,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
     scopeType?: string;
   };
 
-  if (!["THEME_SCAN", "THEME_SNAPSHOT"].includes(jobType)) {
+  if (jobType === "THEME_SCAN") {
+    return NextResponse.json(
+      errorEnvelope(
+        "VALIDATION_FAILED",
+        "Full theme scan manual trigger is not implemented in Phase 12. Use THEME_SNAPSHOT for dashboard snapshot refresh.",
+        {
+          jobType,
+          supportedJobType: "THEME_SNAPSHOT",
+        },
+      ),
+      { status: 422 },
+    );
+  }
+
+  if (jobType !== "THEME_SNAPSHOT") {
     return NextResponse.json(
       errorEnvelope("VALIDATION_FAILED", "Unsupported manual job trigger.", {
         jobType,

@@ -450,6 +450,7 @@ export async function buildThemeCandidatesView(
         latestStates.map(([layer, state]) => [layer, serializeSignal(state)]),
       ),
       source_of_inclusion: candidate.sourceOfInclusion,
+      theme_candidate_id: candidate.themeCandidateId,
       ticker: candidate.security.canonicalTicker,
       top_fail_reason: candidate.topFailReason,
       top_pass_reason: candidate.topPassReason,

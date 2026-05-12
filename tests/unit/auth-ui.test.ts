@@ -8,6 +8,7 @@ import {
   validateAdminPassword,
   verifyAdminPassword,
 } from "@/lib/auth/password";
+import { isAllowedMutationOrigin } from "@/lib/auth/origin";
 import { getReasonMeta } from "@/lib/ui/reasons";
 
 function readSourceFiles(dir: string): string[] {
@@ -51,6 +52,55 @@ describe("Phase 12 auth and UI contract", () => {
       displayLabel: "Unrecognized reason",
       severity: "INFO",
     });
+  });
+
+  it("registers emitted reason codes used by the Phase 12 UI", () => {
+    for (const code of [
+      "FUNDAMENTAL_SEGMENT_REVENUE_SUPPORT",
+      "PRICE_NON_PARTICIPANT",
+      "PRICE_BROKEN",
+      "VALUATION_INSUFFICIENT_DATA",
+      "LIQUIDITY_EXPANDED_ELIGIBLE",
+      "FRAGILITY_CONVERTIBLE_DEBT",
+      "DISPERSION_SINGLE_NAME_RISK",
+    ]) {
+      expect(getReasonMeta(code).displayLabel).not.toBe("Unrecognized reason");
+    }
+  });
+
+  it("uses Origin or Referer for same-origin mutation checks", () => {
+    const base = {
+      appBaseUrl: "https://alpha.solidmetrics.co",
+      appEnv: "vercel-production",
+      requestOrigin: "https://alpha.solidmetrics.co",
+    };
+
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: "https://alpha.solidmetrics.co",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        referer: "https://alpha.solidmetrics.co/admin/jobs",
+      }),
+    ).toBe(true);
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: "https://example.com",
+      }),
+    ).toBe(false);
+    expect(isAllowedMutationOrigin(base)).toBe(false);
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        appEnv: "hetzner-dev",
+        requestOrigin: "http://100.79.23.21:420",
+      }),
+    ).toBe(true);
   });
 
   it("keeps forbidden trading command wording out of app UI source", () => {

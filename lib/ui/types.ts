@@ -53,6 +53,7 @@ export type CandidateRow = {
   signal_scores: Record<string, SignalView>;
   signal_states: Record<string, SignalView>;
   source_of_inclusion: string;
+  theme_candidate_id: string;
   ticker: string;
   top_fail_reason: string | null;
   top_pass_reason: string | null;
@@ -163,6 +164,7 @@ export type TickerReportView = {
       signal_scores: Record<string, SignalView>;
       signal_states: Record<string, SignalView>;
       source_of_inclusion: string;
+      theme_candidate_id: string;
       top_fail_reason: string | null;
       top_pass_reason: string | null;
     };

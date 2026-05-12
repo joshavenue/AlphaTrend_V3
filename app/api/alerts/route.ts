@@ -5,6 +5,7 @@ import type {
   AlertSeverity,
 } from "@/generated/prisma/client";
 import { errorEnvelope, successEnvelope } from "@/lib/api/envelope";
+import { hasInvalidPageCursor } from "@/lib/api/pagination";
 import { buildAlertsPage } from "@/lib/app/read-models";
 import { isAuthResponse, requireApiSession } from "@/lib/auth/session";
 
@@ -17,20 +18,32 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
+  const cursor = params.get("cursor");
+
+  if (hasInvalidPageCursor(cursor)) {
+    return NextResponse.json(
+      errorEnvelope("VALIDATION_FAILED", "Invalid pagination cursor."),
+      { status: 422 },
+    );
+  }
 
   try {
+    const page = await buildAlertsPage({
+      cursor,
+      deliveryStatus: params.get(
+        "deliveryStatus",
+      ) as AlertDeliveryStatus | null,
+      limit: Number(params.get("limit") ?? 50),
+      readStatus: params.get("readStatus") as "read" | "unread" | null,
+      securityId: params.get("securityId") ?? params.get("ticker"),
+      severity: params.get("severity") as AlertSeverity | null,
+      themeId: params.get("themeId"),
+    });
+
     return NextResponse.json(
-      successEnvelope(
-        await buildAlertsPage({
-          deliveryStatus: params.get(
-            "deliveryStatus",
-          ) as AlertDeliveryStatus | null,
-          limit: Number(params.get("limit") ?? 50),
-          readStatus: params.get("readStatus") as "read" | "unread" | null,
-          severity: params.get("severity") as AlertSeverity | null,
-          themeId: params.get("themeId"),
-        }),
-      ),
+      successEnvelope(page.rows, {
+        pagination: page.pagination,
+      }),
     );
   } catch {
     return NextResponse.json(

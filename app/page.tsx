@@ -56,16 +56,16 @@ export default async function DashboardPage() {
             </p>
           </div>
           <JobTriggerButton
-            jobType="THEME_SCAN"
-            label={hasSnapshots ? "Refresh snapshots" : "Run first scan"}
+            jobType="THEME_SNAPSHOT"
+            label={hasSnapshots ? "Refresh snapshots" : "Build first snapshot"}
           />
         </section>
 
         {!hasSnapshots ? (
           <section className="border border-caution bg-caution-bg p-3 text-sm text-caution">
             No scan has completed yet. Active themes are visible without fake
-            scores; use the admin action to build the first snapshot when source
-            signals are ready.
+            scores; use the admin action to build the first dashboard snapshot
+            when source signals are ready.
           </section>
         ) : null}
 

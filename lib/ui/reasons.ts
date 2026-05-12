@@ -168,6 +168,16 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Available ETF coverage is broad enough to express the theme.",
     "INFO",
   ),
+  DISPERSION_ETF_TOO_BROAD: meta(
+    "ETF too broad",
+    "The available ETF proxy is too broad to cleanly isolate the theme.",
+    "CAUTION",
+  ),
+  DISPERSION_INSUFFICIENT_CANDIDATES: meta(
+    "Insufficient candidates",
+    "There are not enough qualified candidates to support clean theme expression.",
+    "WARNING",
+  ),
   DISPERSION_LEADERS_EXTENDED: meta(
     "Leaders extended",
     "The cleanest leaders are price or valuation extended.",
@@ -182,6 +192,11 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "No clear single leader",
     "The theme does not have one clean dominant ticker.",
     "CAUTION",
+  ),
+  DISPERSION_SINGLE_NAME_RISK: meta(
+    "Single-name risk",
+    "Theme expression is too dependent on one ticker.",
+    "WARNING",
   ),
   EXPOSURE_BUSINESS_LINE_MATCH: meta(
     "Business-line match",
@@ -238,6 +253,11 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Cash runway evidence indicates financial fragility.",
     "WARNING",
   ),
+  FRAGILITY_CONVERTIBLE_DEBT: meta(
+    "Convertible debt risk",
+    "Convertible debt evidence creates dilution or balance-sheet fragility risk.",
+    "WARNING",
+  ),
   FRAGILITY_GOING_CONCERN: meta(
     "Going concern flag",
     "Filing evidence contains a going-concern or severe fragility warning.",
@@ -248,14 +268,39 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "The engine did not find major liquidity or fragility blockers.",
     "POSITIVE",
   ),
+  FRAGILITY_REVERSE_SPLIT_HISTORY: meta(
+    "Reverse split history",
+    "Reverse split history indicates structural fragility that should be monitored.",
+    "WARNING",
+  ),
   FUNDAMENTAL_BALANCE_SHEET_HEALTHY: meta(
     "Balance sheet healthy",
     "Balance sheet evidence supports the ticker's fundamental quality.",
     "POSITIVE",
   ),
+  FUNDAMENTAL_ACCOUNTING_DATA_QUALITY: meta(
+    "Accounting data quality",
+    "Accounting and provider data quality is adequate for fundamental validation.",
+    "POSITIVE",
+  ),
+  FUNDAMENTAL_CASH_RUNWAY_LOW: meta(
+    "Cash runway low",
+    "Available cash runway is low enough to weaken fundamental quality.",
+    "WARNING",
+  ),
   FUNDAMENTAL_CRITICAL_DATA_MISSING: meta(
     "Critical fundamental data missing",
     "Required fundamental evidence is missing.",
+    "WARNING",
+  ),
+  FUNDAMENTAL_DEBT_RISK: meta(
+    "Debt risk",
+    "Debt or leverage evidence is high enough to weaken the fundamental state.",
+    "WARNING",
+  ),
+  FUNDAMENTAL_FCF_NEGATIVE: meta(
+    "Free cash flow negative",
+    "Free cash flow is negative and weighs against fundamental validation.",
     "WARNING",
   ),
   FUNDAMENTAL_FCF_POSITIVE: meta(
@@ -263,15 +308,70 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Free cash flow evidence is positive.",
     "POSITIVE",
   ),
+  FUNDAMENTAL_GROSS_MARGIN_EXPANDING: meta(
+    "Gross margin expanding",
+    "Gross margin evidence is improving versus the comparison period.",
+    "POSITIVE",
+  ),
+  FUNDAMENTAL_GUIDANCE_SUPPORT: meta(
+    "Guidance support",
+    "Company guidance supports the theme-linked fundamental trajectory.",
+    "POSITIVE",
+  ),
+  FUNDAMENTAL_INVENTORY_BUILD_WARNING: meta(
+    "Inventory build warning",
+    "Inventory evidence may indicate demand, margin, or execution risk.",
+    "CAUTION",
+  ),
+  FUNDAMENTAL_MARGIN_COMPRESSING: meta(
+    "Margin compressing",
+    "Margin evidence is deteriorating versus the comparison period.",
+    "WARNING",
+  ),
+  FUNDAMENTAL_OPERATING_MARGIN_EXPANDING: meta(
+    "Operating margin expanding",
+    "Operating margin evidence is improving versus the comparison period.",
+    "POSITIVE",
+  ),
   FUNDAMENTAL_REVENUE_ACCELERATING: meta(
     "Revenue accelerating",
     "Recent revenue growth improved versus the prior comparison period.",
     "POSITIVE",
   ),
+  FUNDAMENTAL_REVENUE_DECLINING: meta(
+    "Revenue declining",
+    "Revenue is declining over the selected comparison period.",
+    "WARNING",
+  ),
   FUNDAMENTAL_REVENUE_GROWING: meta(
     "Revenue growing",
     "Revenue is growing over the selected comparison period.",
     "POSITIVE",
+  ),
+  FUNDAMENTAL_SEC_VENDOR_DISAGREEMENT: meta(
+    "SEC/vendor disagreement",
+    "SEC and vendor fundamentals disagree materially and need reconciliation.",
+    "WARNING",
+  ),
+  FUNDAMENTAL_SEGMENT_REVENUE_SUPPORT: meta(
+    "Segment revenue support",
+    "Segment-level revenue evidence supports the theme exposure claim.",
+    "POSITIVE",
+  ),
+  FUNDAMENTAL_SEVERE_DILUTION: meta(
+    "Severe dilution",
+    "Share-count growth is severe enough to block or sharply weaken fundamentals.",
+    "BLOCKER",
+  ),
+  FUNDAMENTAL_SHARE_COUNT_RISING: meta(
+    "Share count rising",
+    "Share-count growth is elevated and dilutes per-share participation.",
+    "WARNING",
+  ),
+  FUNDAMENTAL_T1_EXPOSURE_TOO_LOW: meta(
+    "Exposure too low",
+    "T1 exposure purity is too low for fundamental validation to upgrade the ticker.",
+    "BLOCKER",
   ),
   LIQUIDITY_CORE_ELIGIBLE: meta(
     "Core liquidity eligible",
@@ -288,10 +388,35 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Average dollar volume is below the preferred liquidity threshold.",
     "WARNING",
   ),
+  LIQUIDITY_EXPANDED_ELIGIBLE: meta(
+    "Expanded liquidity eligible",
+    "Liquidity is sufficient for expanded watchlist eligibility but below the core tier.",
+    "INFO",
+  ),
   LIQUIDITY_ILLIQUID: meta(
     "Illiquid",
     "Liquidity is too low for clean single-stock expression.",
     "BLOCKER",
+  ),
+  LIQUIDITY_SPECULATIVE_ONLY: meta(
+    "Speculative liquidity only",
+    "Liquidity is only sufficient for speculative monitoring, not clean expression.",
+    "WARNING",
+  ),
+  PRICE_BROKEN: meta(
+    "Price broken",
+    "Price structure is weak enough to block participation.",
+    "BLOCKER",
+  ),
+  PRICE_DELAYED_CATCHUP_IMPROVING: meta(
+    "Delayed catch-up improving",
+    "Price behavior is improving from behind the theme leaders.",
+    "INFO",
+  ),
+  PRICE_INSUFFICIENT_HISTORY: meta(
+    "Insufficient price history",
+    "There is not enough price history to score the participation state.",
+    "CAUTION",
   ),
   PRICE_LEADER: meta(
     "Price leader",
@@ -302,6 +427,36 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Leader but extended",
     "The ticker is participating as a leader, but price extension makes immediate expression less attractive.",
     "WARNING",
+  ),
+  PRICE_NEEDS_CONSOLIDATION: meta(
+    "Needs consolidation",
+    "Price participation exists, but extension or volatility needs consolidation.",
+    "WARNING",
+  ),
+  PRICE_NON_PARTICIPANT: meta(
+    "Price non-participant",
+    "Price behavior does not confirm participation in the theme.",
+    "CAUTION",
+  ),
+  PRICE_ONE_DAY_SIGNAL_SUPPRESSED: meta(
+    "One-day signal suppressed",
+    "A single-day price move was suppressed to avoid overreacting to noise.",
+    "CAUTION",
+  ),
+  PRICE_OUTRAN_EVIDENCE: meta(
+    "Price outran evidence",
+    "Price strength has moved ahead of the available fundamental or theme evidence.",
+    "WARNING",
+  ),
+  PRICE_PARTICIPANT: meta(
+    "Price participant",
+    "The ticker is participating constructively in theme price action.",
+    "POSITIVE",
+  ),
+  PRICE_RS_VS_SECTOR_POSITIVE: meta(
+    "Sector relative strength positive",
+    "The ticker is outperforming its sector comparison.",
+    "POSITIVE",
   ),
   PRICE_RS_VS_THEME_POSITIVE: meta(
     "Relative strength positive",
@@ -317,6 +472,11 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Theme basket proxy used",
     "Theme-relative price participation used the basket proxy.",
     "INFO",
+  ),
+  PRICE_TREND_IMPROVING: meta(
+    "Trend improving",
+    "Trend evidence is improving versus the relevant moving-average structure.",
+    "POSITIVE",
   ),
   PRICE_VOLUME_CONFIRMATION: meta(
     "Volume confirmation",
@@ -342,6 +502,11 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Valuation extreme",
     "Valuation is extreme enough to block clean expression.",
     "BLOCKER",
+  ),
+  VALUATION_INSUFFICIENT_DATA: meta(
+    "Valuation data insufficient",
+    "Valuation inputs were not sufficient to score valuation risk.",
+    "CAUTION",
   ),
   VALUATION_ROOM_AVAILABLE: meta(
     "Valuation room available",

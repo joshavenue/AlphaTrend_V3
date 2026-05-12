@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import type { WatchlistStatus, WatchType } from "@/generated/prisma/client";
 import { errorEnvelope, successEnvelope } from "@/lib/api/envelope";
+import { hasInvalidPageCursor } from "@/lib/api/pagination";
 import { buildWatchlistPage } from "@/lib/app/read-models";
 import { isSameOriginRequest } from "@/lib/auth/origin";
 import { isAuthResponse, requireApiSession } from "@/lib/auth/session";
@@ -36,19 +37,30 @@ export async function GET(request: NextRequest) {
   }
 
   const params = request.nextUrl.searchParams;
+  const cursor = params.get("cursor");
+
+  if (hasInvalidPageCursor(cursor)) {
+    return NextResponse.json(
+      errorEnvelope("VALIDATION_FAILED", "Invalid pagination cursor."),
+      { status: 422 },
+    );
+  }
 
   try {
+    const page = await buildWatchlistPage({
+      cursor,
+      limit: Number(params.get("limit") ?? 100),
+      securityId: params.get("securityId") ?? params.get("ticker"),
+      status: params.get("status") as WatchlistStatus | null,
+      themeId: params.get("themeId"),
+      userId: auth.user.id,
+      watchType: params.get("watchType") as WatchType | null,
+    });
+
     return NextResponse.json(
-      successEnvelope(
-        await buildWatchlistPage({
-          limit: Number(params.get("limit") ?? 100),
-          securityId: params.get("securityId"),
-          status: params.get("status") as WatchlistStatus | null,
-          themeId: params.get("themeId"),
-          userId: auth.user.id,
-          watchType: params.get("watchType") as WatchType | null,
-        }),
-      ),
+      successEnvelope(page.rows, {
+        pagination: page.pagination,
+      }),
     );
   } catch {
     return NextResponse.json(
@@ -85,6 +97,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       errorEnvelope("VALIDATION_FAILED", "Unsupported watchType.", {
         watchType: body.watchType,
+      }),
+      { status: 422 },
+    );
+  }
+
+  if (body.themeCandidateId && body.watchType !== "TICKER_THEME_PAIR") {
+    return NextResponse.json(
+      errorEnvelope(
+        "VALIDATION_FAILED",
+        "themeCandidateId is only valid for ticker-theme watches.",
+      ),
+      { status: 422 },
+    );
+  }
+
+  if (body.themeCandidateId && !isUuid(body.themeCandidateId)) {
+    return NextResponse.json(
+      errorEnvelope("VALIDATION_FAILED", "Invalid themeCandidateId.", {
+        themeCandidateId: body.themeCandidateId,
       }),
       { status: 422 },
     );
@@ -138,6 +169,34 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const themeCandidate = body.themeCandidateId
+    ? await prisma.themeCandidate.findFirst({
+        select: {
+          themeCandidateId: true,
+        },
+        where: {
+          securityId: security?.securityId,
+          themeCandidateId: body.themeCandidateId,
+          themeId: theme?.themeId,
+        },
+      })
+    : null;
+
+  if (body.themeCandidateId && !themeCandidate) {
+    return NextResponse.json(
+      errorEnvelope(
+        "VALIDATION_FAILED",
+        "themeCandidateId does not match the requested theme and security.",
+        {
+          securityId: security?.securityId ?? null,
+          themeCandidateId: body.themeCandidateId,
+          themeId: theme?.themeId ?? null,
+        },
+      ),
+      { status: 422 },
+    );
+  }
+
   const existing = await prisma.watchlistItem.findFirst({
     where: {
       securityId: security?.securityId ?? null,
@@ -149,6 +208,20 @@ export async function POST(request: NextRequest) {
   });
 
   if (existing) {
+    if (
+      themeCandidate &&
+      existing.themeCandidateId !== themeCandidate.themeCandidateId
+    ) {
+      await prisma.watchlistItem.update({
+        data: {
+          themeCandidateId: themeCandidate.themeCandidateId,
+        },
+        where: {
+          watchlistItemId: existing.watchlistItemId,
+        },
+      });
+    }
+
     return NextResponse.json(
       successEnvelope({
         status: existing.status,
@@ -161,7 +234,7 @@ export async function POST(request: NextRequest) {
     data: {
       securityId: security?.securityId,
       status: "ACTIVE",
-      themeCandidateId: body.themeCandidateId,
+      themeCandidateId: themeCandidate?.themeCandidateId,
       themeId: theme?.themeId,
       userId: auth.user.id,
       watchType: body.watchType,

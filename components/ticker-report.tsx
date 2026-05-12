@@ -111,6 +111,7 @@ export function TickerReport({
                   initialWatchlistItemId={watched?.watchlist_item_id}
                   label={`${report.security.ticker} / ${themeReport.theme.theme_name}`}
                   securityId={report.security.security_id}
+                  themeCandidateId={themeReport.candidate.theme_candidate_id}
                   themeId={themeReport.theme.theme_id}
                   watchType="TICKER_THEME_PAIR"
                 />

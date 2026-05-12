@@ -278,7 +278,7 @@ export default async function ThemeDetailPage({ params }: ThemePageProps) {
                               }
                               label={`${row.ticker} / ${snapshot.theme_name}`}
                               securityId={row.security_id}
-                              themeCandidateId={undefined}
+                              themeCandidateId={row.theme_candidate_id}
                               themeId={snapshot.theme_id}
                               watchType="TICKER_THEME_PAIR"
                             />

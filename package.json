@@ -35,6 +35,8 @@
     "fundamentals:report": "tsx scripts/fundamentals-report.ts",
     "price:score": "tsx scripts/price-score.ts",
     "price:report": "tsx scripts/price-report.ts",
+    "liquidity:score": "tsx scripts/liquidity-score.ts",
+    "liquidity:report": "tsx scripts/liquidity-report.ts",
     "job:theme-scan": "tsx scripts/placeholder-job.ts theme-scan",
     "job:snapshots": "tsx scripts/placeholder-job.ts snapshots",
     "job:alerts": "tsx scripts/placeholder-job.ts alerts",

@@ -548,6 +548,10 @@ model ThemeCandidate {
   finalState        FinalState?      @map("final_state")
   sourceOfInclusion String           @map("source_of_inclusion")
   sourceDetail      Json?            @map("source_detail")
+  tickerReviewPriorityScore Decimal? @map("ticker_review_priority_score") @db.Decimal(10, 4)
+  rejectionReasonCodes Json?         @map("rejection_reason_codes")
+  topPassReason     String?          @map("top_pass_reason")
+  topFailReason     String?          @map("top_fail_reason")
   firstSeenAt       DateTime         @default(now()) @map("first_seen_at") @db.Timestamptz(3)
   lastSeenAt        DateTime?        @map("last_seen_at") @db.Timestamptz(3)
   lastScannedAt     DateTime?        @map("last_scanned_at") @db.Timestamptz(3)
@@ -568,6 +572,7 @@ model ThemeCandidate {
   @@index([themeId, securityId], map: "theme_candidates_theme_security_idx")
   @@index([candidateStatus], map: "theme_candidates_candidate_status_idx")
   @@index([finalState], map: "theme_candidates_final_state_idx")
+  @@index([tickerReviewPriorityScore], map: "theme_candidates_review_priority_idx")
   @@map("theme_candidates")
 }
 

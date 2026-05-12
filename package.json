@@ -39,8 +39,10 @@
     "liquidity:report": "tsx scripts/liquidity-report.ts",
     "expression:score": "tsx scripts/expression-score.ts",
     "expression:report": "tsx scripts/expression-report.ts",
+    "snapshots:build": "tsx scripts/snapshots-build.ts",
+    "snapshots:report": "tsx scripts/snapshots-report.ts",
     "job:theme-scan": "tsx scripts/placeholder-job.ts theme-scan",
-    "job:snapshots": "tsx scripts/placeholder-job.ts snapshots",
+    "job:snapshots": "tsx scripts/snapshots-build.ts --all",
     "job:alerts": "tsx scripts/placeholder-job.ts alerts",
     "verify:docs": "tsx scripts/verify-docs.ts"
   },

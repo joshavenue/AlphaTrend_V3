@@ -12,6 +12,16 @@ export type ApiSuccessEnvelope<T> = {
   meta: ApiMeta;
 };
 
+export type ApiErrorEnvelope = {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, unknown>;
+  };
+  meta: Pick<ApiMeta, "requestId" | "generatedAt">;
+};
+
 export function createRequestId() {
   return `req_${randomUUID()}`;
 }
@@ -29,6 +39,26 @@ export function successEnvelope<T>(
       requestId: meta.requestId ?? createRequestId(),
       generatedAt,
       asOf: meta.asOf ?? generatedAt,
+    },
+  };
+}
+
+export function errorEnvelope(
+  code: string,
+  message: string,
+  details?: Record<string, unknown>,
+  meta: Partial<ApiMeta> = {},
+): ApiErrorEnvelope {
+  return {
+    ok: false,
+    error: {
+      code,
+      details,
+      message,
+    },
+    meta: {
+      requestId: meta.requestId ?? createRequestId(),
+      generatedAt: meta.generatedAt ?? new Date().toISOString(),
     },
   };
 }

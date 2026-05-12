@@ -144,7 +144,6 @@ async function loadCandidatesForExpression(
         orderBy: {
           computedAt: "desc",
         },
-        take: 20,
         where: {
           signalLayer: {
             in: [...REQUIRED_SIGNAL_LAYERS],
@@ -155,7 +154,6 @@ async function loadCandidatesForExpression(
         orderBy: {
           computedAt: "desc",
         },
-        take: 20,
         where: {
           signalLayer: {
             in: [...REQUIRED_SIGNAL_LAYERS],
@@ -592,13 +590,14 @@ export async function scoreThemeExpressions(
       status: "STARTED",
     },
   });
-  const lockKey = await acquireLock(prisma, jobRun.jobRunId, scope);
+  let lockKey: string | undefined;
   const warnings: ExpressionScoringSummary["warnings"] = [];
   const themeSummaries = new Map<string, ExpressionThemeSummary>();
   let evidenceWritten = 0;
   let rowsWritten = 0;
 
   try {
+    lockKey = await acquireLock(prisma, jobRun.jobRunId, scope);
     const candidates = await loadCandidatesForExpression(prisma, options);
     const detailByEvidenceId = await loadDetailEvidence(prisma, candidates);
     const grouped = groupByTheme(candidates, detailByEvidenceId);
@@ -684,6 +683,8 @@ export async function scoreThemeExpressions(
     });
     throw error;
   } finally {
-    await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    if (lockKey) {
+      await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    }
   }
 }

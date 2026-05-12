@@ -305,6 +305,29 @@ describe.skipIf(!process.env.DATABASE_URL)(
             },
           ],
         });
+        await prisma.candidateSignalScore.createMany({
+          data: Array.from({ length: 25 }, (_, index) => ({
+            computedAt: new Date(Date.UTC(2026, 4, 13, 0, 0, index)),
+            evidenceIds: [t4Evidence.evidenceId],
+            maxScore: 100,
+            reasonCodes: ["PRICE_LEADER"],
+            score: 80,
+            scoreVersion: "test",
+            signalLayer: "T4_PRICE_VALUATION_PARTICIPATION",
+            themeCandidateId: candidate.themeCandidateId,
+          })),
+        });
+        await prisma.candidateSignalState.createMany({
+          data: Array.from({ length: 25 }, (_, index) => ({
+            computedAt: new Date(Date.UTC(2026, 4, 13, 0, 0, index)),
+            evidenceIds: [t4Evidence.evidenceId],
+            reasonCodes: ["PRICE_LEADER"],
+            signalLayer: "T4_PRICE_VALUATION_PARTICIPATION",
+            state: "LEADER",
+            stateVersion: "test",
+            themeCandidateId: candidate.themeCandidateId,
+          })),
+        });
 
         const result = await scoreThemeExpressions(prisma, {
           themeRef: themeCode,

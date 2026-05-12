@@ -195,6 +195,23 @@ describe("Phase 10 T8 expression decision scoring", () => {
     expect(result.candidateStatus).toBe("NO_TRADE");
   });
 
+  it("severe dilution reason code fails closed when detail evidence is missing", () => {
+    const result = scoreExpressionDecision(
+      input({
+        t6: {
+          evidenceIds: ["t6"],
+          reasonCodes: ["DILUTION_SEVERE"],
+          score: 70,
+          state: "CORE_ELIGIBLE",
+        },
+        t6Detail: undefined,
+      }),
+    );
+
+    expect(result.finalState).toBe("NO_TRADE");
+    expect(result.rejectionReasonCodes).toContain("DILUTION_SEVERE");
+  });
+
   it("recent offering warning without material share growth is not a veto", () => {
     const result = scoreExpressionDecision(
       input({
@@ -328,11 +345,38 @@ describe("Phase 10 T8 expression decision scoring", () => {
     expect(result.finalState).toBe("LEADER_BUT_EXTENDED");
   });
 
-  it("high dispersion returns basket preferred for quality candidates", () => {
+  it("high dispersion does not prefer basket before theme reality is proven", () => {
     const result = scoreExpressionDecision(input(), highDispersion());
+
+    expect(result.finalState).toBe("SINGLE_STOCK_RESEARCH_JUSTIFIED");
+    expect(result.detail.theme_dispersion_risk?.state).toBe("HIGH");
+  });
+
+  it("high dispersion returns basket preferred when theme reality is proven", () => {
+    const result = scoreExpressionDecision(
+      input({
+        themeRealityScore: 80,
+      }),
+      highDispersion(),
+    );
 
     expect(result.finalState).toBe("BASKET_PREFERRED");
     expect(result.detail.theme_dispersion_risk?.state).toBe("HIGH");
+  });
+
+  it("price stale data sets the T8 freshness warning", () => {
+    const result = scoreExpressionDecision(
+      input({
+        t4: {
+          evidenceIds: ["t4"],
+          reasonCodes: ["PRICE_STALE_DATA"],
+          score: 80,
+          state: "LEADER",
+        },
+      }),
+    );
+
+    expect(result.detail.data_freshness_warning).toBe(true);
   });
 
   it("eligible high-quality candidate returns single-stock research justified", () => {

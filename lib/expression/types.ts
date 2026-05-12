@@ -61,6 +61,7 @@ export type ExpressionCandidateInput = {
   securityId?: string;
   sourceOfInclusion?: string;
   t1: ExpressionSignalSnapshot;
+  themeRealityScore?: number;
   t3: ExpressionSignalSnapshot;
   t4: ExpressionSignalSnapshot;
   t6: ExpressionSignalSnapshot;

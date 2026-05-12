@@ -12,6 +12,7 @@ import type {
   ThemeDispersionRiskState,
   ValuationState,
 } from "@/lib/expression/types";
+import { T4_REASON_CODES } from "@/lib/price/constants";
 
 const STRONG_T1_STATES = new Set([
   "MAJOR_BENEFICIARY",
@@ -162,9 +163,7 @@ function dataQualityScore(input: ExpressionCandidateInput) {
   const requiredLayers = [input.t1, input.t3, input.t4, input.t6];
   const presentLayers = requiredLayers.filter((layer) => layer.state).length;
   const staleOrMissing = requiredLayers.some((layer) =>
-    layer.reasonCodes.some(
-      (code) => code === "DATA_MISSING" || code === "DATA_STALE",
-    ),
+    layer.reasonCodes.some((code) => isDataQualitySuppressionCode(code)),
   );
 
   if (presentLayers === requiredLayers.length && !staleOrMissing) {
@@ -172,6 +171,14 @@ function dataQualityScore(input: ExpressionCandidateInput) {
   }
 
   return presentLayers * 20;
+}
+
+function isStaleDataCode(code: string) {
+  return code === "DATA_STALE" || code === T4_REASON_CODES.STALE_DATA;
+}
+
+function isDataQualitySuppressionCode(code: string) {
+  return code === T8_REASON_CODES.DATA_MISSING || isStaleDataCode(code);
 }
 
 export function calculateReviewPriorityScore(input: ExpressionCandidateInput) {
@@ -201,6 +208,17 @@ function hasT6Veto(input: ExpressionCandidateInput, veto: string) {
   const flags = input.t6Detail?.veto_flags ?? [];
 
   return flags.some((flag) => flag === veto);
+}
+
+function hasSevereT6Risk(input: ExpressionCandidateInput) {
+  return (
+    hasT6Veto(input, "SEVERE_DILUTION") ||
+    hasT6Veto(input, "ILLIQUID") ||
+    input.t6Detail?.dilution_risk_state === "SEVERE" ||
+    input.t6.state === "ILLIQUID" ||
+    input.t6.reasonCodes.includes("DILUTION_SEVERE") ||
+    input.t6.reasonCodes.includes("LIQUIDITY_ILLIQUID")
+  );
 }
 
 function hasGoingConcernWithWeakFundamentals(input: ExpressionCandidateInput) {
@@ -270,7 +288,7 @@ function detail(
   return {
     algorithm_version: T8_EXPRESSION_ALGORITHM_VERSION,
     blocking_reason_codes: blockingReasonCodes,
-    data_freshness_warning: reasonCodes.includes("DATA_STALE"),
+    data_freshness_warning: reasonCodes.some(isStaleDataCode),
     display_group: input.displayGroup,
     evidence_count: evidenceIds.length,
     expression: input.expression,
@@ -588,11 +606,8 @@ export function scoreExpressionDecision(
   }
 
   if (
-    hasT6Veto(candidate, "SEVERE_DILUTION") ||
-    hasT6Veto(candidate, "ILLIQUID") ||
-    hasT6Veto(candidate, "RECENT_MATERIAL_OFFERING") ||
-    candidate.t6Detail?.dilution_risk_state === "SEVERE" ||
-    candidate.t6.state === "ILLIQUID"
+    hasSevereT6Risk(candidate) ||
+    hasT6Veto(candidate, "RECENT_MATERIAL_OFFERING")
   ) {
     return decide({
       blocking: [
@@ -747,7 +762,11 @@ export function scoreExpressionDecision(
     });
   }
 
-  if (themeDispersionRisk?.state === "HIGH" && isQualityCandidate(candidate)) {
+  if (
+    themeDispersionRisk?.state === "HIGH" &&
+    numericScore(candidate.themeRealityScore, 0) >= 60 &&
+    isQualityCandidate(candidate)
+  ) {
     const etfPreferred = themeDispersionRisk.etf_coverage_quality >= 10;
 
     return decide({

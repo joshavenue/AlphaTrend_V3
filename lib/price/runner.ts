@@ -30,6 +30,7 @@ import type { ProviderResult } from "@/lib/providers/types";
 import { isUuid } from "@/lib/util/uuid";
 
 const LOCK_TTL_MS = 30 * 60 * 1_000;
+const MASSIVE_REQUEST_SPACING_MS = 12_500;
 const ACTIVE_THEME_STATUSES = [
   "ACTIVE_UNSCANNED",
   "ACTIVE_SCANNED",
@@ -40,6 +41,21 @@ const SCORABLE_T1_STATES = [
   "DIRECT_BENEFICIARY",
   "PARTIAL_BENEFICIARY",
   "INDIRECT_BENEFICIARY",
+] as const;
+const THEME_BASKET_T1_STATES = [
+  "MAJOR_BENEFICIARY",
+  "DIRECT_BENEFICIARY",
+] as const;
+const THEME_BASKET_EXCLUDED_CANDIDATE_STATUSES = [
+  "REJECTED",
+  "NO_TRADE",
+  "INACTIVE",
+] as const;
+const THEME_BASKET_EXCLUDED_FINAL_STATES = [
+  "WRONG_TICKER",
+  "NO_TRADE",
+  "REJECTED",
+  "INVALIDATED",
 ] as const;
 
 type CandidateForPrice = Awaited<
@@ -79,6 +95,10 @@ function providerCalls(results: ProviderResult<unknown>[]) {
   return results.filter((result) => result.status !== "UNCONFIGURED").length;
 }
 
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function rowsReadFromProviders(results: ProviderResult<unknown>[]) {
   return results.reduce((sum, result) => sum + (result.rowCount ?? 0), 0);
 }
@@ -103,6 +123,52 @@ function themeWhere(themeRef?: string) {
 
 function isScorableT1State(state: string | undefined) {
   return SCORABLE_T1_STATES.some((eligibleState) => eligibleState === state);
+}
+
+function isThemeBasketT1State(state: string | undefined) {
+  return THEME_BASKET_T1_STATES.some(
+    (eligibleState) => eligibleState === state,
+  );
+}
+
+function latestSignalState(
+  candidate: CandidateForPrice,
+  signalLayer: typeof T1_SIGNAL_LAYER | typeof T3_SIGNAL_LAYER,
+) {
+  return candidate.signalStates.find(
+    (state) => state.signalLayer === signalLayer,
+  );
+}
+
+function latestSignalScore(
+  candidate: CandidateForPrice,
+  signalLayer: typeof T1_SIGNAL_LAYER | typeof T3_SIGNAL_LAYER,
+) {
+  return candidate.signalScores.find(
+    (score) => score.signalLayer === signalLayer,
+  );
+}
+
+function isThemeBasketCandidate(candidate: CandidateForPrice) {
+  const latestT1 = latestSignalState(candidate, T1_SIGNAL_LAYER);
+  const candidateStatus = String(candidate.candidateStatus);
+  const finalState =
+    candidate.finalState === null || candidate.finalState === undefined
+      ? undefined
+      : String(candidate.finalState);
+
+  return (
+    isThemeBasketT1State(latestT1?.state) &&
+    !THEME_BASKET_EXCLUDED_CANDIDATE_STATUSES.includes(
+      candidateStatus as (typeof THEME_BASKET_EXCLUDED_CANDIDATE_STATUSES)[number],
+    ) &&
+    !(
+      finalState &&
+      THEME_BASKET_EXCLUDED_FINAL_STATES.includes(
+        finalState as (typeof THEME_BASKET_EXCLUDED_FINAL_STATES)[number],
+      )
+    )
+  );
 }
 
 function daysAgoIso(days: number) {
@@ -265,6 +331,82 @@ async function loadCandidatesForPrice(
   }
 
   return latestEligibleCandidates;
+}
+
+async function loadThemeBenchmarkCandidates(
+  prisma: PriceDbClient,
+  themeIds: string[],
+) {
+  if (themeIds.length === 0) {
+    return [];
+  }
+
+  const candidates = await prisma.themeCandidate.findMany({
+    include: {
+      security: {
+        select: {
+          canonicalTicker: true,
+          companyName: true,
+          securityId: true,
+        },
+      },
+      signalScores: {
+        orderBy: {
+          computedAt: "desc",
+        },
+        take: 10,
+        where: {
+          signalLayer: {
+            in: [T1_SIGNAL_LAYER, T3_SIGNAL_LAYER],
+          },
+        },
+      },
+      signalStates: {
+        orderBy: {
+          computedAt: "desc",
+        },
+        take: 10,
+        where: {
+          signalLayer: {
+            in: [T1_SIGNAL_LAYER, T3_SIGNAL_LAYER],
+          },
+        },
+      },
+      theme: {
+        select: {
+          seedEtfs: true,
+          sourceThemeCode: true,
+          themeId: true,
+          themeName: true,
+          themeSlug: true,
+        },
+      },
+    },
+    orderBy: [
+      {
+        theme: {
+          sourceThemeCode: "asc",
+        },
+      },
+      {
+        security: {
+          canonicalTicker: "asc",
+        },
+      },
+    ],
+    where: {
+      signalStates: {
+        some: {
+          signalLayer: T1_SIGNAL_LAYER,
+        },
+      },
+      themeId: {
+        in: themeIds,
+      },
+    },
+  });
+
+  return candidates.filter(isThemeBasketCandidate);
 }
 
 async function acquireLock(
@@ -436,6 +578,25 @@ async function barsForTicker(
 
   const providerResults: ProviderResult<unknown>[] = [];
   let barsWritten = 0;
+  let storedBars: PriceBar[] | undefined;
+
+  if (input.securityId) {
+    storedBars = await loadStoredBars(prisma, input.securityId, input.fromIso);
+
+    if (storedBars.length >= T4_HISTORY.minimumBarsForState) {
+      const storedMetrics = computePriceMetrics(storedBars);
+
+      if (!storedMetrics.isStale) {
+        return {
+          bars: storedBars,
+          barsWritten,
+          providerResults,
+          rowsRead: storedBars.length,
+          source: "stored",
+        };
+      }
+    }
+  }
 
   if (input.includeMassive !== false) {
     const result = await fetchMassiveDailyBars(
@@ -472,11 +633,9 @@ async function barsForTicker(
   }
 
   if (input.securityId) {
-    const stored = await loadStoredBars(
-      prisma,
-      input.securityId,
-      input.fromIso,
-    );
+    const stored =
+      storedBars ??
+      (await loadStoredBars(prisma, input.securityId, input.fromIso));
 
     if (stored.length > 0) {
       return {
@@ -516,18 +675,14 @@ function tState(
   candidate: CandidateForPrice,
   signalLayer: typeof T1_SIGNAL_LAYER | typeof T3_SIGNAL_LAYER,
 ) {
-  return candidate.signalStates.find(
-    (state) => state.signalLayer === signalLayer,
-  );
+  return latestSignalState(candidate, signalLayer);
 }
 
 function tScore(
   candidate: CandidateForPrice,
   signalLayer: typeof T1_SIGNAL_LAYER | typeof T3_SIGNAL_LAYER,
 ) {
-  return candidate.signalScores.find(
-    (score) => score.signalLayer === signalLayer,
-  );
+  return latestSignalScore(candidate, signalLayer);
 }
 
 function groupByTheme(candidates: CandidateForPrice[]) {
@@ -882,10 +1037,6 @@ async function fetchValuationBundle(
         prisma,
       },
       ticker,
-      {
-        limit: 20,
-        period: "quarter",
-      },
     ),
     fetchFmpRatios(
       {
@@ -893,10 +1044,6 @@ async function fetchValuationBundle(
         prisma,
       },
       ticker,
-      {
-        limit: 20,
-        period: "quarter",
-      },
     ),
   ]);
   providerResults.push(keyMetrics, ratios);
@@ -934,6 +1081,7 @@ export async function scoreThemePrices(
   const toIso = todayIso();
   const benchmarkCache = new Map<string, BarsBundle>();
   const candidateBars = new Map<string, BarsBundle>();
+  let nextMassiveRequestAt = 0;
   let evidenceWritten = 0;
   let rowsRead = 0;
   let rowsWritten = 0;
@@ -941,6 +1089,10 @@ export async function scoreThemePrices(
   try {
     const candidates = await loadCandidatesForPrice(prisma, options);
     const candidatesByTheme = groupByTheme(candidates);
+    const benchmarkCandidates = await loadThemeBenchmarkCandidates(prisma, [
+      ...candidatesByTheme.keys(),
+    ]);
+    const benchmarkCandidatesByTheme = groupByTheme(benchmarkCandidates);
 
     async function getBars(
       ticker: string,
@@ -951,6 +1103,20 @@ export async function scoreThemePrices(
 
       if (benchmarkCache.has(cacheKey)) {
         return benchmarkCache.get(cacheKey)!;
+      }
+
+      const hasFixture = Boolean(
+        options.providerDataByTicker?.[ticker.toUpperCase()]?.bars,
+      );
+
+      if (options.includeMassive !== false && !hasFixture) {
+        const waitMs = nextMassiveRequestAt - Date.now();
+
+        if (waitMs > 0) {
+          await sleep(waitMs);
+        }
+
+        nextMassiveRequestAt = Date.now() + MASSIVE_REQUEST_SPACING_MS;
       }
 
       const bundle = await barsForTicker(prisma, {
@@ -984,6 +1150,8 @@ export async function scoreThemePrices(
       const firstCandidate = themeCandidates[0];
       const themeCode = firstCandidate.theme.sourceThemeCode ?? undefined;
       const seedEtfs = seedEtfTickers(firstCandidate.theme.seedEtfs);
+      const basketCandidates =
+        benchmarkCandidatesByTheme.get(firstCandidate.themeId) ?? [];
 
       for (const candidate of themeCandidates) {
         const bundle = await getBars(
@@ -994,14 +1162,27 @@ export async function scoreThemePrices(
         candidateBars.set(candidate.themeCandidateId, bundle);
       }
 
+      for (const candidate of basketCandidates) {
+        if (candidateBars.has(candidate.themeCandidateId)) {
+          continue;
+        }
+
+        const bundle = await getBars(
+          candidate.security.canonicalTicker,
+          themeCode,
+          candidate.securityId,
+        );
+        candidateBars.set(candidate.themeCandidateId, bundle);
+      }
+
       let themeBenchmark: ThemeBenchmark = {
         bars: buildEqualWeightBasketBars(
-          themeCandidates.map(
+          basketCandidates.map(
             (candidate) =>
               candidateBars.get(candidate.themeCandidateId)?.bars ?? [],
           ),
         ),
-        memberCount: themeCandidates.length,
+        memberCount: basketCandidates.length,
         method: "equal_weight_candidates",
         rowsWritten: 0,
       };
@@ -1019,7 +1200,7 @@ export async function scoreThemePrices(
 
         themeBenchmark = {
           bars: seedBars?.bars ?? [],
-          memberCount: themeCandidates.length,
+          memberCount: basketCandidates.length,
           method: seedBars?.bars.length
             ? "seed_etf_proxy"
             : "insufficient_data",

@@ -84,7 +84,7 @@ function sanitizeRequestMetadata(
 }
 
 function classifyStatus(httpStatus?: number) {
-  if (httpStatus === 401 || httpStatus === 403) {
+  if (httpStatus === 401 || httpStatus === 402 || httpStatus === 403) {
     return "LICENSE_BLOCKED" as const;
   }
 
@@ -116,6 +116,24 @@ function parseResponsePayload(contentType: string | null, rawBody: string) {
   }
 
   return rawBody;
+}
+
+function retryDelayMs(retryAfter: string | null, attempt: number) {
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(seconds * 1_000, 30_000);
+    }
+
+    const retryAt = Date.parse(retryAfter);
+
+    if (Number.isFinite(retryAt)) {
+      return Math.min(Math.max(retryAt - Date.now(), 0), 30_000);
+    }
+  }
+
+  return Math.min(2 ** attempt * 250, 2_000);
 }
 
 async function sleep(ms: number) {
@@ -218,7 +236,9 @@ export async function providerFetch<T>(
           attempt < maxAttempts &&
           isRetryableProviderResponse(method, response.status)
         ) {
-          await sleep(Math.min(2 ** attempt * 250, 2_000));
+          await sleep(
+            retryDelayMs(response.headers.get("retry-after"), attempt),
+          );
           continue;
         }
 
@@ -351,10 +371,16 @@ export async function providerFetch<T>(
       latestError =
         error instanceof Error ? error.message : JSON.stringify(error);
 
-      if (attempt < maxAttempts) {
+      if (
+        attempt < maxAttempts &&
+        (latestStatus === undefined ||
+          isRetryableProviderResponse(method, latestStatus))
+      ) {
         await sleep(Math.min(2 ** attempt * 250, 2_000));
         continue;
       }
+
+      break;
     } finally {
       clearTimeout(timeout);
     }

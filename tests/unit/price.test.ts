@@ -78,6 +78,9 @@ function input(overrides: Partial<PriceScoringInput> = {}): PriceScoringInput {
     qqqBars: bars(280, {
       dailyReturn: 0.0005,
     }),
+    sectorBars: bars(280, {
+      dailyReturn: 0.00045,
+    }),
     spyBars: bars(280, {
       dailyReturn: 0.0004,
     }),
@@ -222,6 +225,22 @@ describe("Phase 8 T4 price, valuation, and participation scoring", () => {
 
     expect(result.state).toBe("NON_PARTICIPANT");
     expect(result.scoreDetail.reason_codes).toContain("PRICE_NON_PARTICIPANT");
+  });
+
+  it("missing_sector_bars_do_not_reuse_qqq_as_sector_strength", () => {
+    const result = scorePriceParticipation(
+      input({
+        qqqBars: bars(280, {
+          dailyReturn: 0.0002,
+        }),
+        sectorBars: undefined,
+      }),
+    );
+
+    expect(result.scoreDetail.components.relative_strength_sector).toBe(0);
+    expect(result.scoreDetail.reason_codes).not.toContain(
+      "PRICE_RS_VS_SECTOR_POSITIVE",
+    );
   });
 
   it("valuation_room_uses_historical_band_when_available", () => {

@@ -14,6 +14,7 @@ describe("provider HTTP helpers", () => {
   it("retries idempotent GET calls for transient statuses only", () => {
     expect(isRetryableProviderResponse("GET", 429)).toBe(true);
     expect(isRetryableProviderResponse("GET", 500)).toBe(true);
+    expect(isRetryableProviderResponse("GET", 402)).toBe(false);
     expect(isRetryableProviderResponse("GET", 403)).toBe(false);
     expect(isRetryableProviderResponse("POST", 500)).toBe(false);
   });
@@ -91,6 +92,42 @@ describe("provider HTTP helpers", () => {
         }),
       }),
     );
+  });
+
+  it("classifies plan-gated 402 responses without retrying parse failures", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("Premium Query Parameter", {
+        headers: { "content-type": "application/json" },
+        status: 402,
+        statusText: "Payment Required",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const prisma = {
+      apiObservability: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+      providerPayload: {
+        create: vi.fn().mockResolvedValue({}),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    };
+
+    const result = await providerFetch({
+      endpoint: "key_metrics",
+      parse: (payload) => payload,
+      prisma: prisma as never,
+      provider: "FMP",
+      retryCount: 2,
+      url: "https://financialmodelingprep.com/stable/key-metrics?symbol=AAPL&apikey=raw-secret",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe("LICENSE_BLOCKED");
+    expect(result.httpStatus).toBe(402);
+    expect(result.sanitizedError).toContain("Response parse failed");
   });
 
   it("preserves payload and status diagnostics when provider parsers throw", async () => {

@@ -440,5 +440,339 @@ describe.skipIf(!process.env.DATABASE_URL)(
         }
       }
     });
+
+    it("ticker-scoped scoring uses full-theme direct-major basket context", async () => {
+      const suffix = randomUUID().slice(0, 8).toUpperCase();
+      const themeCode = `P8B${suffix}`;
+      const targetTicker = `P8T${suffix}`.slice(0, 10);
+      const directPeerOne = `P8U${suffix}`.slice(0, 10);
+      const directPeerTwo = `P8V${suffix}`.slice(0, 10);
+      const indirectTicker = `P8W${suffix}`.slice(0, 10);
+      const seedTicker = `P8S${suffix}`.slice(0, 10);
+      const tickerBars = {
+        [targetTicker]: bars(280, {
+          dailyReturn: 0.001,
+          recentBoost: 0.001,
+        }),
+        [directPeerOne]: bars(280, {
+          dailyReturn: 0.0007,
+          recentBoost: 0.0005,
+        }),
+        [directPeerTwo]: bars(280, {
+          dailyReturn: 0.0008,
+          recentBoost: 0.0004,
+        }),
+        [indirectTicker]: bars(280, {
+          dailyReturn: 0.002,
+          recentBoost: 0.002,
+        }),
+        [seedTicker]: bars(280, {
+          dailyReturn: 0.0002,
+        }),
+        QQQ: bars(280, {
+          dailyReturn: 0.00035,
+        }),
+        SPY: bars(280, {
+          dailyReturn: 0.0003,
+        }),
+      };
+      const fixtureHashes = Object.values(tickerBars).map((rows) =>
+        hashPayload(rows),
+      );
+      let themeId: string | undefined;
+      let jobRunId: string | undefined;
+      const securityIds: string[] = [];
+      const candidateIds: string[] = [];
+
+      try {
+        const theme = await prisma.themeDefinition.create({
+          data: {
+            candidateIndustries: [],
+            candidateScreenerRules: [
+              {
+                rule_type: "fixture",
+              },
+            ],
+            defaultDashboardState: "INSUFFICIENT_EVIDENCE",
+            directBeneficiaryCategories: [
+              {
+                display_label: "phase eight basket fixture",
+                normalized_label: "phase eight basket fixture",
+              },
+            ],
+            economicMechanism: {
+              summary: "Phase 8 basket fixture mechanism",
+            },
+            excludedCategories: [
+              {
+                display_label: "excluded fixture",
+                normalized_label: "excluded fixture",
+              },
+            ],
+            indirectBeneficiaryCategories: [],
+            invalidationRules: [
+              {
+                rule: "fixture_invalidated",
+              },
+            ],
+            priceConfirmationRules: [
+              {
+                rule: "fixture_price_confirmation",
+              },
+            ],
+            primaryDemandDrivers: [
+              {
+                label: "fixture",
+              },
+            ],
+            requiredEconomicProof: [
+              {
+                proof_type: "fixture",
+              },
+            ],
+            requiredFundamentalProof: [
+              {
+                metric: "fixture",
+              },
+            ],
+            seedEtfs: [
+              {
+                provider: "MASSIVE",
+                role: "theme_proxy",
+                symbol: seedTicker,
+              },
+            ],
+            sourceThemeCode: themeCode,
+            status: "ACTIVE_UNSCANNED",
+            themeName: `Phase 8 Basket Test Theme ${suffix}`,
+            themeSlug: `phase-8-basket-test-theme-${suffix.toLowerCase()}`,
+            valuationRiskRules: [
+              {
+                rule: "fixture_valuation_risk",
+              },
+            ],
+          },
+        });
+        themeId = theme.themeId;
+
+        for (const ticker of [
+          targetTicker,
+          directPeerOne,
+          directPeerTwo,
+          indirectTicker,
+          seedTicker,
+        ]) {
+          const security = await prisma.security.create({
+            data: {
+              canonicalTicker: ticker,
+              companyName: `${ticker} Phase Eight Basket Fixture`,
+              exchange: ticker === seedTicker ? "NYSEARCA" : "NASDAQ",
+              isActive: true,
+              isEtf: ticker === seedTicker,
+              securityType: ticker === seedTicker ? "ETF" : "COMMON_STOCK",
+              universeBucket:
+                ticker === seedTicker ? "US_ETF_ALL" : "US_COMMON_ALL",
+            },
+          });
+          securityIds.push(security.securityId);
+
+          if (ticker === seedTicker) {
+            continue;
+          }
+
+          const beneficiaryType =
+            ticker === indirectTicker
+              ? "INDIRECT_BENEFICIARY"
+              : "DIRECT_BENEFICIARY";
+          const candidate = await prisma.themeCandidate.create({
+            data: {
+              beneficiaryType,
+              candidateStatus: "REVIEW_REQUIRED",
+              dashboardVisible: false,
+              displayGroup:
+                beneficiaryType === "DIRECT_BENEFICIARY"
+                  ? "Direct beneficiaries"
+                  : "Indirect beneficiaries",
+              securityId: security.securityId,
+              sourceDetail: {
+                generator_version: "test",
+                source_count: 1,
+                source_types: ["MANUAL_SEED_FOR_API_VALIDATION"],
+              },
+              sourceOfInclusion: "MANUAL_SEED_FOR_API_VALIDATION",
+              themeId,
+            },
+          });
+          candidateIds.push(candidate.themeCandidateId);
+
+          await prisma.candidateSignalScore.createMany({
+            data: [
+              {
+                computedAt: new Date("2026-04-01T00:00:00.000Z"),
+                maxScore: 100,
+                score: beneficiaryType === "DIRECT_BENEFICIARY" ? 75 : 45,
+                scoreVersion: "test",
+                signalLayer: "T1_EXPOSURE_PURITY",
+                themeCandidateId: candidate.themeCandidateId,
+              },
+              {
+                computedAt: new Date("2026-04-02T00:00:00.000Z"),
+                maxScore: 100,
+                score: 82,
+                scoreVersion: "test",
+                signalLayer: "T3_FUNDAMENTALS",
+                themeCandidateId: candidate.themeCandidateId,
+              },
+            ],
+          });
+          await prisma.candidateSignalState.createMany({
+            data: [
+              {
+                computedAt: new Date("2026-04-01T00:00:00.000Z"),
+                state: beneficiaryType,
+                stateVersion: "test",
+                signalLayer: "T1_EXPOSURE_PURITY",
+                themeCandidateId: candidate.themeCandidateId,
+              },
+              {
+                computedAt: new Date("2026-04-02T00:00:00.000Z"),
+                state: "VALIDATED",
+                stateVersion: "test",
+                signalLayer: "T3_FUNDAMENTALS",
+                themeCandidateId: candidate.themeCandidateId,
+              },
+            ],
+          });
+        }
+
+        const result = await scoreThemePrices(prisma, {
+          includeFmp: false,
+          includeMassive: false,
+          providerDataByTicker: Object.fromEntries(
+            Object.entries(tickerBars).map(([ticker, fixtureBars]) => [
+              ticker,
+              {
+                bars: fixtureBars,
+              },
+            ]),
+          ),
+          themeRef: themeCode,
+          ticker: targetTicker,
+        });
+        jobRunId = result.jobRunId;
+
+        expect(result.candidatesScored).toBe(1);
+
+        const basket = await prisma.themeBasketPrice.findFirst({
+          where: {
+            themeId,
+          },
+        });
+        expect(basket?.method).toBe("equal_weight_candidates");
+        expect(basket?.memberCount).toBe(3);
+
+        const detailEvidence = await prisma.evidenceLedger.findFirst({
+          orderBy: {
+            fetchedAt: "desc",
+          },
+          where: {
+            entityId: candidateIds[0],
+            metricName: "t4.price_score_detail",
+          },
+        });
+        const detail = JSON.parse(detailEvidence?.metricValueText ?? "{}");
+
+        expect(detail.theme_basket).toMatchObject({
+          member_count: 3,
+          method: "equal_weight_candidates",
+        });
+      } finally {
+        if (candidateIds.length > 0) {
+          await prisma.candidateSignalState.deleteMany({
+            where: {
+              themeCandidateId: {
+                in: candidateIds,
+              },
+            },
+          });
+          await prisma.candidateSignalScore.deleteMany({
+            where: {
+              themeCandidateId: {
+                in: candidateIds,
+              },
+            },
+          });
+        }
+
+        if (themeId) {
+          await prisma.evidenceLedger.deleteMany({
+            where: {
+              themeId,
+            },
+          });
+          await prisma.themeBasketPrice.deleteMany({
+            where: {
+              themeId,
+            },
+          });
+          await prisma.themeCandidate.deleteMany({
+            where: {
+              themeId,
+            },
+          });
+        }
+
+        await prisma.priceBarDaily.deleteMany({
+          where: {
+            sourcePayloadHash: {
+              in: fixtureHashes,
+            },
+          },
+        });
+
+        if (securityIds.length > 0) {
+          await prisma.priceMetricDaily.deleteMany({
+            where: {
+              securityId: {
+                in: securityIds,
+              },
+            },
+          });
+          await prisma.security.deleteMany({
+            where: {
+              securityId: {
+                in: securityIds,
+              },
+            },
+          });
+        }
+
+        if (jobRunId) {
+          await prisma.jobLock.deleteMany({
+            where: {
+              jobRunId,
+            },
+          });
+          await prisma.jobItem.deleteMany({
+            where: {
+              jobRunId,
+            },
+          });
+          await prisma.jobRun.deleteMany({
+            where: {
+              jobRunId,
+            },
+          });
+        }
+
+        if (themeId) {
+          await prisma.themeDefinition.deleteMany({
+            where: {
+              themeId,
+            },
+          });
+        }
+      }
+    });
   },
 );

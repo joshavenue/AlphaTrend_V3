@@ -342,11 +342,7 @@ export function computeRelativeStrength(
       relativeReturn(candidateBars, input.qqqBars, T4_HISTORY.tradingDays3m),
     ),
     vsSector3m: round(
-      relativeReturn(
-        candidateBars,
-        input.sectorBars ?? input.qqqBars,
-        T4_HISTORY.tradingDays3m,
-      ),
+      relativeReturn(candidateBars, input.sectorBars, T4_HISTORY.tradingDays3m),
     ),
     vsSpy1m: round(
       relativeReturn(candidateBars, input.spyBars, T4_HISTORY.tradingDays1m),

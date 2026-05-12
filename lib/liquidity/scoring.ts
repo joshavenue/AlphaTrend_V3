@@ -221,7 +221,11 @@ function dilutionRiskState(
     return "HIGH";
   }
 
-  if (recentOfferingCount > 0) {
+  if (
+    recentOfferingCount > 0 &&
+    shareGrowthYoy !== undefined &&
+    shareGrowthYoy >= T6_THRESHOLDS.shareCountGrowthWarning
+  ) {
     return "HIGH";
   }
 
@@ -232,22 +236,112 @@ function dilutionRiskState(
     return "MODERATE";
   }
 
+  if (recentOfferingCount > 0) {
+    return "MODERATE";
+  }
+
   return "LOW";
 }
 
-function cashRunwayMonths(
-  latestCash: number | undefined,
-  freeCashFlow: number | undefined,
+function hasMaterialRecentOffering(
+  recentOfferingCount: number,
+  shareGrowthYoy: number | undefined,
 ) {
+  return (
+    recentOfferingCount > 0 &&
+    shareGrowthYoy !== undefined &&
+    shareGrowthYoy >= T6_THRESHOLDS.shareCountGrowthWarning
+  );
+}
+
+function cashRunwayMonths(input: {
+  freeCashFlow: number | undefined;
+  latestCash: number | undefined;
+  periodType: "annual" | "quarter" | undefined;
+}) {
   if (
-    latestCash === undefined ||
-    freeCashFlow === undefined ||
-    freeCashFlow >= 0
+    input.latestCash === undefined ||
+    input.freeCashFlow === undefined ||
+    input.freeCashFlow >= 0
   ) {
     return undefined;
   }
 
-  return (latestCash / Math.abs(freeCashFlow)) * 3;
+  return (
+    (input.latestCash / Math.abs(input.freeCashFlow)) *
+    (input.periodType === "annual" ? 12 : 3)
+  );
+}
+
+function filingText(submission: SecCompanySubmission) {
+  return [
+    submission.form,
+    submission.primaryDocument,
+    submission.accessionNumber,
+    submission.reportDate,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function isWithinLookback(
+  submission: SecCompanySubmission,
+  asOfDate: Date,
+  days: number,
+) {
+  const age = daysBetween(submission.filingDate, asOfDate);
+
+  return age !== undefined && age >= 0 && age <= days;
+}
+
+function isGoingConcernSignal(
+  submission: SecCompanySubmission,
+  asOfDate: Date,
+) {
+  if (!isWithinLookback(submission, asOfDate, 365)) {
+    return false;
+  }
+
+  const form = submission.form?.toUpperCase().trim();
+
+  if (
+    form !== "10-K" &&
+    form !== "10-Q" &&
+    form !== "10-K/A" &&
+    form !== "10-Q/A" &&
+    form !== "8-K"
+  ) {
+    return false;
+  }
+
+  const text = filingText(submission);
+
+  return (
+    text.includes("going concern") ||
+    text.includes("going-concern") ||
+    text.includes("substantial doubt")
+  );
+}
+
+function isConvertibleFinancingSignal(
+  submission: SecCompanySubmission,
+  asOfDate: Date,
+) {
+  if (!isWithinLookback(submission, asOfDate, 365)) {
+    return false;
+  }
+
+  const text = filingText(submission);
+
+  return (
+    text.includes("convertible") ||
+    text.includes("warrant") ||
+    text.includes("private placement") ||
+    text.includes("registered direct") ||
+    text.includes("at-the-market") ||
+    text.includes("equity distribution")
+  );
 }
 
 function debtToCash(totalDebt: number | undefined, cash: number | undefined) {
@@ -406,6 +500,8 @@ function reasonCodes(input: {
   recentOfferingCount: number;
   reverseSplitCount: number;
   cashRunwayMonths?: number;
+  convertibleFinancingCount: number;
+  secFilingCoverageAvailable?: boolean;
   shareCountGrowthYoy?: number;
 }) {
   const codes = new Set<string>();
@@ -458,13 +554,23 @@ function reasonCodes(input: {
     codes.add(T6_REASON_CODES.FRAGILITY_REVERSE_SPLIT_HISTORY);
   }
 
+  if (input.convertibleFinancingCount > 0) {
+    codes.add(T6_REASON_CODES.FRAGILITY_CONVERTIBLE_DEBT);
+  }
+
+  if (input.secFilingCoverageAvailable === false) {
+    codes.add(T6_REASON_CODES.REQUIRED_DATA_MISSING);
+  }
+
   if (
     input.fragilityState === "NORMAL_RISK" &&
     input.dilutionRiskState !== "INSUFFICIENT_DATA" &&
     input.liquidityState !== "INSUFFICIENT_DATA" &&
+    input.secFilingCoverageAvailable !== false &&
     !input.goingConcern &&
     input.recentOfferingCount === 0 &&
-    input.reverseSplitCount === 0
+    input.reverseSplitCount === 0 &&
+    input.convertibleFinancingCount === 0
   ) {
     codes.add(T6_REASON_CODES.FRAGILITY_NO_MAJOR_FLAGS);
   }
@@ -474,9 +580,9 @@ function reasonCodes(input: {
 
 function vetoFlags(input: {
   dilutionRiskState: DilutionRiskState;
-  goingConcern: boolean;
+  goingConcernAndWeakFundamentals: boolean;
   liquidityState: LiquidityState;
-  recentOfferingCount: number;
+  materialRecentOffering: boolean;
 }): RiskVetoFlag[] {
   const flags: RiskVetoFlag[] = [];
 
@@ -488,11 +594,11 @@ function vetoFlags(input: {
     flags.push("ILLIQUID");
   }
 
-  if (input.goingConcern) {
+  if (input.goingConcernAndWeakFundamentals) {
     flags.push("GOING_CONCERN_AND_WEAK_FUNDAMENTALS");
   }
 
-  if (input.recentOfferingCount > 0) {
+  if (input.materialRecentOffering) {
     flags.push("RECENT_MATERIAL_OFFERING");
   }
 
@@ -599,6 +705,30 @@ function evidenceDetails(input: {
     });
   }
 
+  if (input.metrics.goingConcernFilingCount > 0) {
+    push({
+      metricName: "t6.going_concern_filing_count",
+      metricValueNum: input.metrics.goingConcernFilingCount,
+      reasonCode: T6_REASON_CODES.FRAGILITY_GOING_CONCERN,
+      scoreImpact:
+        input.components.going_concern_auditor_risk > 0
+          ? input.components.going_concern_auditor_risk
+          : undefined,
+    });
+  }
+
+  if (input.metrics.convertibleFinancingCount > 0) {
+    push({
+      metricName: "t6.convertible_financing_count",
+      metricValueNum: input.metrics.convertibleFinancingCount,
+      reasonCode: T6_REASON_CODES.FRAGILITY_CONVERTIBLE_DEBT,
+      scoreImpact:
+        input.components.corporate_action_risk > 0
+          ? input.components.corporate_action_risk
+          : undefined,
+    });
+  }
+
   if (input.reasonCodes.includes(T6_REASON_CODES.REQUIRED_DATA_MISSING)) {
     push({
       metricName: "t6.required_data_coverage",
@@ -607,6 +737,7 @@ function evidenceDetails(input: {
           input.metrics.averageDollarVolume20d !== undefined,
         financial_period: input.metrics.latestFinancialPeriodEnd !== undefined,
         market_cap: input.metrics.marketCap !== undefined,
+        sec_filing_coverage: input.metrics.secFilingCoverageAvailable !== false,
         share_count_growth_yoy: input.metrics.shareCountGrowthYoy !== undefined,
       }),
       reasonCode: T6_REASON_CODES.REQUIRED_DATA_MISSING,
@@ -634,6 +765,24 @@ export function detectReverseSplitFilings(
   );
 }
 
+export function detectGoingConcernFilings(
+  submissions: SecCompanySubmission[] | undefined,
+  asOfDate = new Date(),
+) {
+  return (submissions ?? []).filter((submission) =>
+    isGoingConcernSignal(submission, asOfDate),
+  );
+}
+
+export function detectConvertibleFinancingFilings(
+  submissions: SecCompanySubmission[] | undefined,
+  asOfDate = new Date(),
+) {
+  return (submissions ?? []).filter((submission) =>
+    isConvertibleFinancingSignal(submission, asOfDate),
+  );
+}
+
 export function scoreLiquidityDilutionFragility(
   input: LiquidityScoringInput,
 ): LiquidityScoreResult {
@@ -648,17 +797,37 @@ export function scoreLiquidityDilutionFragility(
     input.submissions,
     asOfDate,
   ).length;
+  const goingConcernFilingCount = detectGoingConcernFilings(
+    input.submissions,
+    asOfDate,
+  ).length;
+  const convertibleFinancingCount = detectConvertibleFinancingFilings(
+    input.submissions,
+    asOfDate,
+  ).length;
   const latestCash = latestPeriod?.cashAndEquivalents;
   const latestDebt = latestPeriod?.totalDebt;
   const latestFcf = latestPeriod?.freeCashFlow;
-  const runwayMonths = cashRunwayMonths(latestCash, latestFcf);
+  const runwayMonths = cashRunwayMonths({
+    freeCashFlow: latestFcf,
+    latestCash,
+    periodType: latestPeriod?.periodType,
+  });
   const leverage = debtToCash(latestDebt, latestCash);
   const liquidity = liquidityState(input);
   const dilution = dilutionRiskState(shareGrowth, offeringCount);
+  const materialRecentOffering = hasMaterialRecentOffering(
+    offeringCount,
+    shareGrowth,
+  );
+  const goingConcern =
+    input.goingConcern === true || goingConcernFilingCount > 0;
   const components: LiquidityScoreComponents = {
     corporate_action_risk: Math.min(
       10,
-      (offeringCount > 0 ? 6 : 0) + (reverseSplitCount > 0 ? 6 : 0),
+      (offeringCount > 0 ? 4 : 0) +
+        (reverseSplitCount > 0 ? 6 : 0) +
+        (convertibleFinancingCount > 0 ? 4 : 0),
     ),
     debt_cash_runway_risk: debtCashRunwayRisk({
       cashRunwayMonths: runwayMonths,
@@ -671,7 +840,7 @@ export function scoreLiquidityDilutionFragility(
       input.priceDataStale,
     ),
     float_spread_proxy_risk: floatSpreadProxyRisk(input.averageDollarVolume20d),
-    going_concern_auditor_risk: input.goingConcern ? 10 : 0,
+    going_concern_auditor_risk: goingConcern ? 10 : 0,
     market_cap_risk: marketCapRisk(input.marketCap),
   };
   const score = clampRisk(
@@ -679,7 +848,7 @@ export function scoreLiquidityDilutionFragility(
   );
   const fragility = fragilityState(score, {
     dilutionRiskState: dilution,
-    goingConcern: input.goingConcern === true,
+    goingConcern,
     liquidityState: liquidity,
     recentOfferingCount: offeringCount,
   });
@@ -688,8 +857,10 @@ export function scoreLiquidityDilutionFragility(
     averageVolume20d: round(input.averageVolume20d, 2),
     cashAndEquivalents: round(latestCash, 2),
     cashRunwayMonths: round(runwayMonths, 2),
+    convertibleFinancingCount,
     debtToCash: round(leverage, 6),
     freeCashFlow: round(latestFcf, 2),
+    goingConcernFilingCount,
     latestFinancialPeriodEnd: latestPeriod?.periodEnd,
     marketCap: round(input.marketCap, 2),
     metricDate: input.metricDate,
@@ -697,24 +868,27 @@ export function scoreLiquidityDilutionFragility(
     priceDataStale: input.priceDataStale,
     recentOfferingCount: offeringCount,
     reverseSplitCount,
+    secFilingCoverageAvailable: input.secFilingCoverageAvailable,
     shareCountGrowthYoy: round(shareGrowth, 6),
     totalDebt: round(latestDebt, 2),
   };
   const codes = reasonCodes({
     cashRunwayMonths: runwayMonths,
+    convertibleFinancingCount,
     dilutionRiskState: dilution,
     fragilityState: fragility,
-    goingConcern: input.goingConcern === true,
+    goingConcern,
     liquidityState: liquidity,
     recentOfferingCount: offeringCount,
     reverseSplitCount,
+    secFilingCoverageAvailable: input.secFilingCoverageAvailable,
     shareCountGrowthYoy: shareGrowth,
   });
   const flags = vetoFlags({
     dilutionRiskState: dilution,
-    goingConcern: input.goingConcern === true,
+    goingConcernAndWeakFundamentals: input.goingConcern === true,
     liquidityState: liquidity,
-    recentOfferingCount: offeringCount,
+    materialRecentOffering,
   });
   const scoreDetail = {
     algorithm_version: T6_LIQUIDITY_ALGORITHM_VERSION,

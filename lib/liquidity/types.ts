@@ -44,8 +44,10 @@ export type LiquidityMetricsSnapshot = {
   averageVolume20d?: number;
   cashAndEquivalents?: number;
   cashRunwayMonths?: number;
+  convertibleFinancingCount: number;
   debtToCash?: number;
   freeCashFlow?: number;
+  goingConcernFilingCount: number;
   latestFinancialPeriodEnd?: string;
   marketCap?: number;
   metricDate?: string;
@@ -53,6 +55,7 @@ export type LiquidityMetricsSnapshot = {
   priceDataStale?: boolean;
   recentOfferingCount: number;
   reverseSplitCount: number;
+  secFilingCoverageAvailable?: boolean;
   shareCountGrowthYoy?: number;
   totalDebt?: number;
 };
@@ -89,6 +92,7 @@ export type LiquidityScoringInput = {
   marketCap?: number;
   metricDate?: string;
   priceDataStale?: boolean;
+  secFilingCoverageAvailable?: boolean;
   submissions?: SecCompanySubmission[];
 };
 

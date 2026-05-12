@@ -20,7 +20,7 @@ import type {
   LiquidityScoringSummary,
   LiquidityThemeSummary,
 } from "@/lib/liquidity/types";
-import { T4_HISTORY } from "@/lib/price/constants";
+import { T4_HISTORY, T4_THRESHOLDS } from "@/lib/price/constants";
 import { computePriceMetrics } from "@/lib/price/scoring";
 import type { PriceBar } from "@/lib/price/types";
 import {
@@ -107,6 +107,43 @@ function themeWhere(themeRef?: string) {
 
 function dateFromIso(value: string | undefined) {
   return value ? new Date(`${value}T00:00:00.000Z`) : undefined;
+}
+
+function utcDateOnly(date: Date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+function businessDaysBetween(start: Date, end = new Date()) {
+  const current = utcDateOnly(start);
+  const target = utcDateOnly(end);
+  let days = 0;
+
+  if (current >= target) {
+    return 0;
+  }
+
+  current.setUTCDate(current.getUTCDate() + 1);
+
+  while (current <= target) {
+    const day = current.getUTCDay();
+
+    if (day !== 0 && day !== 6) {
+      days += 1;
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return days;
+}
+
+export function isPriceMetricStale(metricDate: Date, asOfDate = new Date()) {
+  return (
+    businessDaysBetween(metricDate, asOfDate) >
+    T4_THRESHOLDS.priceBarsStaleAfterBusinessDays
+  );
 }
 
 function daysAgoIso(days: number) {
@@ -374,41 +411,53 @@ async function fetchProviderBundle(
   let sec = fixture?.sec;
   let fmp = fixture?.fmp;
 
-  if (options.includeSec !== false && !sec && candidate.security.cik) {
-    const [facts, submissions] = await Promise.all([
-      fetchSecFundamentalCompanyFacts(
-        {
-          jobRunId,
-          prisma,
-        },
-        candidate.security.cik,
-      ),
-      fetchSecCompanySubmissions(
-        {
-          jobRunId,
-          prisma,
-        },
-        candidate.security.cik,
-      ),
-    ]);
-    providerResults.push(facts, submissions);
+  if (options.includeSec !== false && !sec) {
+    if (candidate.security.cik) {
+      const [facts, submissions] = await Promise.all([
+        fetchSecFundamentalCompanyFacts(
+          {
+            jobRunId,
+            prisma,
+          },
+          candidate.security.cik,
+        ),
+        fetchSecCompanySubmissions(
+          {
+            jobRunId,
+            prisma,
+          },
+          candidate.security.cik,
+        ),
+      ]);
+      providerResults.push(facts, submissions);
 
-    for (const result of [facts, submissions]) {
-      const secWarning = providerWarning(
-        ticker,
-        candidate.theme.sourceThemeCode ?? undefined,
-        result,
-      );
+      for (const result of [facts, submissions]) {
+        const secWarning = providerWarning(
+          ticker,
+          candidate.theme.sourceThemeCode ?? undefined,
+          result,
+        );
 
-      if (secWarning) {
-        warnings.push(secWarning);
+        if (secWarning) {
+          warnings.push(secWarning);
+        }
       }
-    }
 
-    sec = {
-      companyFacts: facts.ok ? facts.data : undefined,
-      submissions: submissions.ok ? submissions.data : undefined,
-    };
+      sec = {
+        companyFacts: facts.ok ? facts.data : undefined,
+        submissions: submissions.ok ? submissions.data : undefined,
+      };
+    } else {
+      warnings.push(
+        warning({
+          code: T6_REASON_CODES.REQUIRED_DATA_MISSING,
+          message: `${ticker} has no CIK; SEC filings cannot be checked for T6 fragility signals.`,
+          severity: "WARNING",
+          themeCode: candidate.theme.sourceThemeCode ?? undefined,
+          ticker,
+        }),
+      );
+    }
   }
 
   if (options.includeFmp !== false && !fmp) {
@@ -486,16 +535,20 @@ async function priceMetricForCandidate(
   const storedMetric = candidate.security.priceMetrics[0];
 
   if (!fixtureBars && storedMetric) {
-    return {
-      averageDollarVolume20d: decimalNumber(
-        storedMetric.averageDollarVolume20d,
-      ),
-      averageVolume20d: decimalNumber(storedMetric.averageVolume20d),
-      metricDate: storedMetric.metricDate.toISOString().slice(0, 10),
-      priceDataStale: false,
-      providerResults: [],
-      rowsRead: 1,
-    };
+    const priceDataStale = isPriceMetricStale(storedMetric.metricDate);
+
+    if (!priceDataStale || options.includeMassive === false) {
+      return {
+        averageDollarVolume20d: decimalNumber(
+          storedMetric.averageDollarVolume20d,
+        ),
+        averageVolume20d: decimalNumber(storedMetric.averageVolume20d),
+        metricDate: storedMetric.metricDate.toISOString().slice(0, 10),
+        priceDataStale,
+        providerResults: [],
+        rowsRead: 1,
+      };
+    }
   }
 
   const bars = fixtureBars;
@@ -533,7 +586,7 @@ async function priceMetricForCandidate(
   if (!result.ok) {
     return {
       providerResults: [result],
-      rowsRead: result.rowCount ?? 0,
+      rowsRead: 0,
     };
   }
 
@@ -546,7 +599,7 @@ async function priceMetricForCandidate(
     metricDate: metrics.date,
     priceDataStale: metrics.isStale,
     providerResults: [result],
-    rowsRead: data.length,
+    rowsRead: 0,
   };
 }
 
@@ -823,6 +876,9 @@ export async function scoreThemeLiquidity(
         marketCap: marketCapFromFmp(provider.bundle.fmp),
         metricDate: priceMetric.metricDate,
         priceDataStale: priceMetric.priceDataStale,
+        secFilingCoverageAvailable: Array.isArray(
+          provider.bundle.sec?.submissions,
+        ),
         submissions: provider.bundle.sec?.submissions,
       });
 

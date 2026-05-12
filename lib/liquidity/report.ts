@@ -122,35 +122,37 @@ export async function buildLiquidityReport(
       universe_bucket: candidate.security.universeBucket,
     };
   });
-  const detailRows = await prisma.evidenceLedger.findMany({
-    select: {
-      entityId: true,
-      metricValueText: true,
-    },
-    where: {
-      entityId: {
-        in: candidates.map((candidate) => candidate.themeCandidateId),
-      },
-      metricName: "t6.liquidity_fragility_score_detail",
-    },
-    orderBy: {
-      fetchedAt: "desc",
-    },
-  });
-  const detailByCandidate = new Map<string, LiquidityScoreDetail | undefined>();
+  const detailEvidenceIds = rows.flatMap((row) =>
+    row.detail_evidence_id ? [row.detail_evidence_id] : [],
+  );
+  const detailRows =
+    detailEvidenceIds.length === 0
+      ? []
+      : await prisma.evidenceLedger.findMany({
+          select: {
+            evidenceId: true,
+            metricValueText: true,
+          },
+          where: {
+            evidenceId: {
+              in: detailEvidenceIds,
+            },
+            metricName: "t6.liquidity_fragility_score_detail",
+          },
+        });
+  const detailByEvidenceId = new Map<
+    string,
+    LiquidityScoreDetail | undefined
+  >();
 
   for (const row of detailRows) {
-    if (
-      !row.entityId ||
-      !row.metricValueText ||
-      detailByCandidate.has(row.entityId)
-    ) {
+    if (!row.metricValueText) {
       continue;
     }
 
     try {
-      detailByCandidate.set(
-        row.entityId,
+      detailByEvidenceId.set(
+        row.evidenceId,
         riskDetail(JSON.parse(row.metricValueText)),
       );
     } catch {
@@ -166,17 +168,22 @@ export async function buildLiquidityReport(
     theme_filter: themeRef ?? "all",
     total_candidates: rows.length,
     total_scored: rows.filter((row) => row.fragility_score !== null).length,
-    candidates: rows.map((row, index) => {
-      const candidate = candidates[index];
-      const detail = detailByCandidate.get(candidate.themeCandidateId);
+    candidates: rows.map((row) => {
+      const detail = row.detail_evidence_id
+        ? detailByEvidenceId.get(row.detail_evidence_id)
+        : undefined;
 
       return {
         ...row,
         average_dollar_volume_20d:
           detail?.metrics.averageDollarVolume20d ?? null,
         cash_runway_months: detail?.metrics.cashRunwayMonths ?? null,
+        convertible_financing_count:
+          detail?.metrics.convertibleFinancingCount ?? null,
         dilution_risk_state: detail?.dilution_risk_state ?? null,
         fragility_state: detail?.fragility_state ?? null,
+        going_concern_filing_count:
+          detail?.metrics.goingConcernFilingCount ?? null,
         market_cap: detail?.metrics.marketCap ?? null,
         metric_date: detail?.metrics.metricDate ?? null,
         recent_offering_count: detail?.metrics.recentOfferingCount ?? null,

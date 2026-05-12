@@ -298,6 +298,8 @@ model Security {
   candidates     ThemeCandidate[]
   evidence       EvidenceLedger[]
   identifiers    SecurityIdentifier[]
+  priceBars      PriceBarDaily[]
+  priceMetrics   PriceMetricDaily[]
   signalStates   SignalState[]
   watchlistItems WatchlistItem[]
 
@@ -350,14 +352,98 @@ model ProviderPayload {
   redactionStatus    PayloadRedactionStatus @default(REDACTED) @map("redaction_status")
   createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  apiCalls ApiObservability[]
-  evidence EvidenceLedger[]
+  apiCalls  ApiObservability[]
+  evidence  EvidenceLedger[]
+  priceBars PriceBarDaily[]
 
   @@unique([provider, endpoint, requestHash, responseHash], map: "provider_payloads_provider_endpoint_hashes_key")
   @@index([provider, endpoint, responseHash], map: "provider_payloads_provider_endpoint_response_hash_idx")
   @@index([responseHash], map: "provider_payloads_response_hash_idx")
   @@index([fetchedAt], map: "provider_payloads_fetched_at_idx")
   @@map("provider_payloads")
+}
+
+model PriceBarDaily {
+  priceBarDailyId   String       @id @default(uuid()) @map("price_bar_daily_id") @db.Uuid
+  securityId        String       @map("security_id") @db.Uuid
+  ticker            String
+  barDate           DateTime     @map("bar_date") @db.Date
+  open              Decimal      @db.Decimal(28, 8)
+  high              Decimal      @db.Decimal(28, 8)
+  low               Decimal      @db.Decimal(28, 8)
+  close             Decimal      @db.Decimal(28, 8)
+  volume            Decimal      @db.Decimal(28, 4)
+  vwap              Decimal?     @db.Decimal(28, 8)
+  transactions      Int?
+  adjusted          Boolean      @default(true)
+  provider          ProviderName
+  payloadId         String?      @map("payload_id") @db.Uuid
+  sourcePayloadHash String?      @map("source_payload_hash")
+  fetchedAt         DateTime     @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  payload  ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+  security Security         @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+
+  @@unique([securityId, barDate, provider, adjusted], map: "price_bars_daily_security_date_provider_adjusted_key")
+  @@index([ticker, barDate], map: "price_bars_daily_ticker_date_idx")
+  @@index([provider, fetchedAt], map: "price_bars_daily_provider_fetched_at_idx")
+  @@index([payloadId], map: "price_bars_daily_payload_id_idx")
+  @@map("price_bars_daily")
+}
+
+model PriceMetricDaily {
+  priceMetricDailyId     String   @id @default(uuid()) @map("price_metric_daily_id") @db.Uuid
+  securityId             String   @map("security_id") @db.Uuid
+  metricDate             DateTime @map("metric_date") @db.Date
+  latestClose            Decimal? @map("latest_close") @db.Decimal(28, 8)
+  ma20                   Decimal? @map("ma_20") @db.Decimal(28, 8)
+  ma50                   Decimal? @map("ma_50") @db.Decimal(28, 8)
+  ma200                  Decimal? @map("ma_200") @db.Decimal(28, 8)
+  ma20Slope              Decimal? @map("ma_20_slope") @db.Decimal(18, 8)
+  ma50Slope              Decimal? @map("ma_50_slope") @db.Decimal(18, 8)
+  ma200Slope             Decimal? @map("ma_200_slope") @db.Decimal(18, 8)
+  atr14                  Decimal? @map("atr_14") @db.Decimal(28, 8)
+  high52w                Decimal? @map("high_52w") @db.Decimal(28, 8)
+  low52w                 Decimal? @map("low_52w") @db.Decimal(28, 8)
+  distanceFrom20dAtr     Decimal? @map("distance_from_20d_atr") @db.Decimal(18, 8)
+  distanceFrom50dAtr     Decimal? @map("distance_from_50d_atr") @db.Decimal(18, 8)
+  return1m               Decimal? @map("return_1m") @db.Decimal(18, 8)
+  return3m               Decimal? @map("return_3m") @db.Decimal(18, 8)
+  return6m               Decimal? @map("return_6m") @db.Decimal(18, 8)
+  drawdownFrom52wHigh    Decimal? @map("drawdown_from_52w_high") @db.Decimal(18, 8)
+  averageVolume20d       Decimal? @map("average_volume_20d") @db.Decimal(28, 4)
+  averageDollarVolume20d Decimal? @map("average_dollar_volume_20d") @db.Decimal(28, 4)
+  volumeZscore20d        Decimal? @map("volume_zscore_20d") @db.Decimal(18, 8)
+  upVolumeRatio20d       Decimal? @map("up_volume_ratio_20d") @db.Decimal(18, 8)
+  computedAt             DateTime @default(now()) @map("computed_at") @db.Timestamptz(3)
+  algorithmVersion       String   @map("algorithm_version")
+
+  security Security @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+
+  @@unique([securityId, metricDate, algorithmVersion], map: "price_metrics_daily_security_date_algorithm_key")
+  @@index([metricDate], map: "price_metrics_daily_metric_date_idx")
+  @@index([securityId, computedAt], map: "price_metrics_daily_security_computed_at_idx")
+  @@map("price_metrics_daily")
+}
+
+model ThemeBasketPrice {
+  themeBasketPriceId String   @id @default(uuid()) @map("theme_basket_price_id") @db.Uuid
+  themeId            String   @map("theme_id") @db.Uuid
+  basketDate         DateTime @map("basket_date") @db.Date
+  memberCount        Int      @map("member_count")
+  return1m           Decimal? @map("return_1m") @db.Decimal(18, 8)
+  return3m           Decimal? @map("return_3m") @db.Decimal(18, 8)
+  benchmarkTicker    String?  @map("benchmark_ticker")
+  method             String
+  algorithmVersion   String   @map("algorithm_version")
+  computedAt         DateTime @default(now()) @map("computed_at") @db.Timestamptz(3)
+
+  theme ThemeDefinition @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+
+  @@unique([themeId, basketDate, algorithmVersion], map: "theme_basket_prices_theme_date_algorithm_key")
+  @@index([themeId, computedAt], map: "theme_basket_prices_theme_computed_at_idx")
+  @@map("theme_basket_prices")
 }
 
 model JobRun {
@@ -442,6 +528,7 @@ model ThemeDefinition {
   updatedAt                     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   alerts         Alert[]
+  basketPrices   ThemeBasketPrice[]
   candidates     ThemeCandidate[]
   evidence       EvidenceLedger[]
   signalStates   SignalState[]

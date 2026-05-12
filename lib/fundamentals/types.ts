@@ -75,14 +75,15 @@ export type FundamentalScoreComponents = {
 };
 
 export type ReconciliationDiscrepancy = {
-  absoluteDifference: number;
-  fmpValue: number;
+  absoluteDifference?: number;
+  fmpValue?: number;
   material: boolean;
   metricName: string;
-  percentDifference: number;
+  percentDifference?: number;
   periodEnd: string;
-  preferredSource: "SEC" | "FMP";
-  secValue: number;
+  preferredSource: "SEC" | "FMP" | "NONE";
+  reasonCode?: string;
+  secValue?: number;
 };
 
 export type ReconciliationSummary = {

@@ -383,6 +383,7 @@ function applyCaps(input: {
   hasMinimumHistory: boolean;
   metrics: FundamentalMetricSnapshot;
   score: number;
+  t1ExposureScore?: number;
   t1State?: string;
   reconciliationMaterial: boolean;
 }) {
@@ -402,6 +403,10 @@ function applyCaps(input: {
     input.metrics.revenueGrowthYoy === undefined
   ) {
     cap("critical_data_missing", T3_CAPS.criticalDataMissing);
+  }
+
+  if (input.t1ExposureScore !== undefined && input.t1ExposureScore < 30) {
+    cap("t1_exposure_score_below_30", T3_CAPS.t1ExposureTooLow);
   }
 
   if (
@@ -507,7 +512,50 @@ function scoreEvidenceDetails(
     },
   ];
 
-  for (const [component, value] of Object.entries(components)) {
+  function componentReasonCode(
+    component: keyof FundamentalScoreComponents,
+    value: number,
+  ) {
+    if (component === "dilution_penalty") {
+      return value <= -20
+        ? T3_REASON_CODES.SEVERE_DILUTION
+        : T3_REASON_CODES.SHARE_COUNT_RISING;
+    }
+
+    if (component === "revenue_acceleration") {
+      return value >= 15
+        ? T3_REASON_CODES.REVENUE_ACCELERATING
+        : T3_REASON_CODES.REVENUE_GROWING;
+    }
+
+    if (component === "segment_validation") {
+      return T3_REASON_CODES.SEGMENT_REVENUE_SUPPORT;
+    }
+
+    if (component === "margin_expansion") {
+      return T3_REASON_CODES.GROSS_MARGIN_EXPANDING;
+    }
+
+    if (component === "cash_flow_quality") {
+      return T3_REASON_CODES.FCF_POSITIVE;
+    }
+
+    if (component === "guidance_backlog_support") {
+      return T3_REASON_CODES.GUIDANCE_SUPPORT;
+    }
+
+    if (component === "balance_sheet_quality") {
+      return value >= 7
+        ? T3_REASON_CODES.BALANCE_SHEET_HEALTHY
+        : T3_REASON_CODES.DEBT_RISK;
+    }
+
+    return T3_REASON_CODES.ACCOUNTING_DATA_QUALITY;
+  }
+
+  for (const [component, value] of Object.entries(components) as Array<
+    [keyof FundamentalScoreComponents, number]
+  >) {
     if (value === 0) {
       continue;
     }
@@ -515,10 +563,7 @@ function scoreEvidenceDetails(
     details.push({
       metricName: `t3.component.${component}`,
       metricValueNum: value,
-      reasonCode:
-        component === "dilution_penalty"
-          ? T3_REASON_CODES.SHARE_COUNT_RISING
-          : T3_REASON_CODES.REVENUE_GROWING,
+      reasonCode: componentReasonCode(component, value),
       scoreImpact: value,
     });
   }
@@ -637,6 +682,7 @@ export function scoreFundamentalValidation(
     metrics,
     reconciliationMaterial,
     score: rawScore,
+    t1ExposureScore: input.t1ExposureScore,
     t1State: input.t1State,
   });
   const score = clampScore(capped.score);
@@ -648,6 +694,10 @@ export function scoreFundamentalValidation(
 
   if (!comparable.hasMinimumHistory || metrics.revenueGrowthYoy === undefined) {
     reasonCodes.push(T3_REASON_CODES.CRITICAL_DATA_MISSING);
+  }
+
+  if (input.t1ExposureScore !== undefined && input.t1ExposureScore < 30) {
+    reasonCodes.push(T3_REASON_CODES.T1_EXPOSURE_TOO_LOW);
   }
 
   const state = stateFor({

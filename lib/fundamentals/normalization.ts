@@ -263,6 +263,7 @@ function preferredFact(
   unitKinds: "USD" | "shares",
   periodEnd: string,
   periodType: FundamentalPeriodType,
+  factKind: "duration" | "instant",
 ) {
   const units =
     unitKinds === "USD" ? new Set(["USD"]) : new Set(["shares", "SHARES"]);
@@ -292,6 +293,10 @@ function preferredFact(
 
     if (framed) {
       return framed;
+    }
+
+    if (periodType === "quarter" && factKind === "duration") {
+      continue;
     }
 
     if (taggedFacts[0]) {
@@ -343,6 +348,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const grossProfit = preferredFact(
       input.facts,
@@ -350,6 +356,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const operatingIncome = preferredFact(
       input.facts,
@@ -357,6 +364,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const netIncome = preferredFact(
       input.facts,
@@ -364,6 +372,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const operatingCashFlow = preferredFact(
       input.facts,
@@ -371,6 +380,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const capex = preferredFact(
       input.facts,
@@ -378,6 +388,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "duration",
     );
     const dilutedShares = preferredFact(
       input.facts,
@@ -385,6 +396,7 @@ export function normalizeSecCompanyFacts(
       "shares",
       periodEnd,
       periodType,
+      "duration",
     );
     const cash = preferredFact(
       input.facts,
@@ -392,6 +404,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
     const currentDebt = preferredFact(
       input.facts,
@@ -399,6 +412,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
     const nonCurrentDebt = preferredFact(
       input.facts,
@@ -406,6 +420,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
     const assets = preferredFact(
       input.facts,
@@ -413,6 +428,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
     const liabilities = preferredFact(
       input.facts,
@@ -420,6 +436,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
     const inventory = preferredFact(
       input.facts,
@@ -427,6 +444,7 @@ export function normalizeSecCompanyFacts(
       "USD",
       periodEnd,
       periodType,
+      "instant",
     );
 
     periods.push({
@@ -449,6 +467,8 @@ export function normalizeSecCompanyFacts(
       sourceTags: {
         assets: assets?.tag,
         cash: cash?.tag,
+        debtCurrent: currentDebt?.tag,
+        debtNonCurrent: nonCurrentDebt?.tag,
         grossProfit: grossProfit?.tag,
         netIncome: netIncome?.tag,
         operatingCashFlow: operatingCashFlow?.tag,

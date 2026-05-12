@@ -4,6 +4,7 @@ import type {
   ReconciliationDiscrepancy,
   ReconciliationSummary,
 } from "@/lib/fundamentals/types";
+import { T3_DATA_REASON_CODES } from "@/lib/fundamentals/constants";
 
 type ReconciledMetric = {
   metricName: string;
@@ -40,6 +41,7 @@ const RECONCILED_METRICS: ReconciledMetric[] = [
     tolerance: "share",
   },
 ];
+const MAX_PERIOD_END_TOLERANCE_DAYS = 3;
 
 function numericMetric(period: FundamentalPeriod, metricName: string) {
   const value = (period as unknown as Record<string, unknown>)[metricName];
@@ -51,6 +53,17 @@ function numericMetric(period: FundamentalPeriod, metricName: string) {
 
 function percentDifference(left: number, right: number) {
   return Math.abs(left - right) / Math.max(Math.abs(left), 1);
+}
+
+function daysBetween(left: string, right: string) {
+  const leftTime = Date.parse(`${left}T00:00:00.000Z`);
+  const rightTime = Date.parse(`${right}T00:00:00.000Z`);
+
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.abs(leftTime - rightTime) / 86_400_000;
 }
 
 function isMaterialDifference(input: {
@@ -69,28 +82,87 @@ function isMaterialDifference(input: {
   );
 }
 
-function byPeriodEnd(periods: FundamentalPeriod[]) {
-  return new Map(periods.map((period) => [period.periodEnd, period]));
+function sameFiscalPeriod(left: FundamentalPeriod, right: FundamentalPeriod) {
+  return Boolean(
+    left.fiscalYear !== undefined &&
+    right.fiscalYear !== undefined &&
+    left.fiscalYear === right.fiscalYear &&
+    left.fiscalPeriod &&
+    right.fiscalPeriod &&
+    left.fiscalPeriod === right.fiscalPeriod,
+  );
+}
+
+function findMatchingFmpPeriod(
+  secPeriod: FundamentalPeriod,
+  fmpPeriods: FundamentalPeriod[],
+) {
+  const fiscalMatches = fmpPeriods.filter((period) =>
+    sameFiscalPeriod(secPeriod, period),
+  );
+  const candidates = fiscalMatches.length > 0 ? fiscalMatches : fmpPeriods;
+  const sorted = [...candidates].sort(
+    (left, right) =>
+      daysBetween(secPeriod.periodEnd, left.periodEnd) -
+      daysBetween(secPeriod.periodEnd, right.periodEnd),
+  );
+  const closest = sorted[0];
+
+  if (!closest) {
+    return {
+      period: undefined,
+      fiscalPeriodMismatch: false,
+    };
+  }
+
+  const dayGap = daysBetween(secPeriod.periodEnd, closest.periodEnd);
+
+  return {
+    period: dayGap <= MAX_PERIOD_END_TOLERANCE_DAYS ? closest : undefined,
+    fiscalPeriodMismatch: fiscalMatches.length > 0,
+  };
 }
 
 function reconcilePeriodSets(
   secPeriods: FundamentalPeriod[],
   fmpPeriods: FundamentalPeriod[],
 ) {
-  const fmpByPeriodEnd = byPeriodEnd(fmpPeriods);
   const discrepancies: ReconciliationDiscrepancy[] = [];
   let comparedCount = 0;
 
   for (const secPeriod of secPeriods) {
-    const fmpPeriod = fmpByPeriodEnd.get(secPeriod.periodEnd);
+    const match = findMatchingFmpPeriod(secPeriod, fmpPeriods);
+    const fmpPeriod = match.period;
 
     if (!fmpPeriod) {
+      if (match.fiscalPeriodMismatch) {
+        discrepancies.push({
+          material: false,
+          metricName: "period_mismatch",
+          periodEnd: secPeriod.periodEnd,
+          preferredSource: "NONE",
+          reasonCode: T3_DATA_REASON_CODES.DATA_PERIOD_MISMATCH,
+        });
+      }
+
       continue;
     }
 
     for (const metric of RECONCILED_METRICS) {
       const secValue = numericMetric(secPeriod, metric.metricName);
       const fmpValue = numericMetric(fmpPeriod, metric.metricName);
+
+      if (secValue === undefined && fmpValue !== undefined) {
+        discrepancies.push({
+          fmpValue,
+          material: false,
+          metricName: metric.metricName,
+          periodEnd: secPeriod.periodEnd,
+          preferredSource: "FMP",
+          reasonCode: T3_DATA_REASON_CODES.DATA_MISSING,
+        });
+        continue;
+      }
 
       if (secValue === undefined || fmpValue === undefined) {
         continue;
@@ -115,6 +187,7 @@ function reconcilePeriodSets(
           percentDifference: pctDifference,
           periodEnd: secPeriod.periodEnd,
           preferredSource: "SEC",
+          reasonCode: T3_DATA_REASON_CODES.DATA_VENDOR_DISAGREEMENT,
           secValue,
         });
       }

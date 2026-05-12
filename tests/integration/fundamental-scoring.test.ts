@@ -23,9 +23,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const suffix = randomUUID().slice(0, 8).toUpperCase();
       const themeCode = `P7${suffix}`;
       const ticker = `P7X${suffix}`.slice(0, 10);
+      const staleTicker = `P7Y${suffix}`.slice(0, 10);
       let themeId: string | undefined;
       let securityId: string | undefined;
+      let staleSecurityId: string | undefined;
       let candidateId: string | undefined;
+      let staleCandidateId: string | undefined;
       let jobRunId: string | undefined;
 
       try {
@@ -96,6 +99,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
         });
         securityId = security.securityId;
 
+        const staleSecurity = await prisma.security.create({
+          data: {
+            canonicalTicker: staleTicker,
+            companyName: "Phase Seven Stale T1 Inc.",
+            exchange: "NASDAQ",
+            isActive: true,
+            isEtf: false,
+            securityType: "COMMON_STOCK",
+            universeBucket: "US_COMMON_ALL",
+          },
+        });
+        staleSecurityId = staleSecurity.securityId;
+
         const candidate = await prisma.themeCandidate.create({
           data: {
             beneficiaryType: "DIRECT_BENEFICIARY",
@@ -122,8 +138,35 @@ describe.skipIf(!process.env.DATABASE_URL)(
         });
         candidateId = candidate.themeCandidateId;
 
+        const staleCandidate = await prisma.themeCandidate.create({
+          data: {
+            beneficiaryType: "UNRELATED",
+            candidateStatus: "REJECTED",
+            dashboardVisible: false,
+            displayGroup: "Wrong ticker / rejected",
+            finalState: "NO_TRADE",
+            securityId: staleSecurityId,
+            sourceDetail: {
+              generator_version: "test",
+              source_count: 1,
+              source_types: ["MANUAL_SEED_FOR_API_VALIDATION"],
+              sources: [
+                {
+                  source_key: `manual_seed:${themeCode}:${staleTicker}`,
+                  source_type: "MANUAL_SEED_FOR_API_VALIDATION",
+                  ticker: staleTicker,
+                },
+              ],
+            },
+            sourceOfInclusion: "MANUAL_SEED_FOR_API_VALIDATION",
+            themeId,
+          },
+        });
+        staleCandidateId = staleCandidate.themeCandidateId;
+
         await prisma.candidateSignalScore.create({
           data: {
+            computedAt: new Date("2026-01-01T00:00:00.000Z"),
             maxScore: 100,
             score: 75,
             scoreVersion: "test",
@@ -133,11 +176,50 @@ describe.skipIf(!process.env.DATABASE_URL)(
         });
         await prisma.candidateSignalState.create({
           data: {
+            computedAt: new Date("2026-01-01T00:00:00.000Z"),
             state: "DIRECT_BENEFICIARY",
             stateVersion: "test",
             signalLayer: "T1_EXPOSURE_PURITY",
             themeCandidateId: candidateId,
           },
+        });
+        await prisma.candidateSignalScore.createMany({
+          data: [
+            {
+              computedAt: new Date("2026-01-01T00:00:00.000Z"),
+              maxScore: 100,
+              score: 75,
+              scoreVersion: "test",
+              signalLayer: "T1_EXPOSURE_PURITY",
+              themeCandidateId: staleCandidateId,
+            },
+            {
+              computedAt: new Date("2026-02-01T00:00:00.000Z"),
+              maxScore: 100,
+              score: 0,
+              scoreVersion: "test",
+              signalLayer: "T1_EXPOSURE_PURITY",
+              themeCandidateId: staleCandidateId,
+            },
+          ],
+        });
+        await prisma.candidateSignalState.createMany({
+          data: [
+            {
+              computedAt: new Date("2026-01-01T00:00:00.000Z"),
+              state: "DIRECT_BENEFICIARY",
+              stateVersion: "test",
+              signalLayer: "T1_EXPOSURE_PURITY",
+              themeCandidateId: staleCandidateId,
+            },
+            {
+              computedAt: new Date("2026-02-01T00:00:00.000Z"),
+              state: "UNRELATED",
+              stateVersion: "test",
+              signalLayer: "T1_EXPOSURE_PURITY",
+              themeCandidateId: staleCandidateId,
+            },
+          ],
         });
 
         const result = await scoreThemeFundamentals(prisma, {
@@ -258,6 +340,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
         const report = await buildFundamentalReport(prisma, themeCode);
 
         expect(report.total_scored).toBe(1);
+        expect(
+          report.candidates.find((row) => row.ticker === staleTicker)
+            ?.fundamental_state,
+        ).toBeNull();
         expect(report.candidates[0]).toMatchObject({
           fundamental_state: "IMPROVING",
           ticker,
@@ -286,6 +372,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
           });
         }
 
+        if (staleCandidateId) {
+          await prisma.candidateSignalState.deleteMany({
+            where: {
+              themeCandidateId: staleCandidateId,
+            },
+          });
+          await prisma.candidateSignalScore.deleteMany({
+            where: {
+              themeCandidateId: staleCandidateId,
+            },
+          });
+          await prisma.themeCandidate.deleteMany({
+            where: {
+              themeCandidateId: staleCandidateId,
+            },
+          });
+        }
+
         if (jobRunId) {
           await prisma.jobLock.deleteMany({
             where: {
@@ -308,6 +412,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
           await prisma.security.deleteMany({
             where: {
               securityId,
+            },
+          });
+        }
+
+        if (staleSecurityId) {
+          await prisma.security.deleteMany({
+            where: {
+              securityId: staleSecurityId,
             },
           });
         }

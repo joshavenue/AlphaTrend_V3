@@ -47,6 +47,10 @@ const SCORABLE_T1_STATES = [
   "INDIRECT_BENEFICIARY",
 ] as const;
 
+function isScorableT1State(state: string | undefined) {
+  return SCORABLE_T1_STATES.some((eligibleState) => eligibleState === state);
+}
+
 type CandidateForFundamentals = Awaited<
   ReturnType<typeof loadCandidatesForFundamentals>
 >[number];
@@ -152,16 +156,17 @@ async function loadCandidatesForFundamentals(
       signalStates: {
         some: {
           signalLayer: T1_SIGNAL_LAYER,
-          state: {
-            in: [...SCORABLE_T1_STATES],
-          },
         },
       },
       theme: themeWhere(options.themeRef),
     },
   });
 
-  if (candidates.length === 0) {
+  const latestEligibleCandidates = candidates.filter((candidate) =>
+    isScorableT1State(candidate.signalStates[0]?.state),
+  );
+
+  if (latestEligibleCandidates.length === 0) {
     throw new Error(
       options.themeRef || options.ticker
         ? `No T1-scored candidates found for ${options.themeRef ?? "all themes"} ${options.ticker ?? ""}.`.trim()
@@ -169,7 +174,7 @@ async function loadCandidatesForFundamentals(
     );
   }
 
-  return candidates;
+  return latestEligibleCandidates;
 }
 
 async function acquireLock(
@@ -485,7 +490,8 @@ async function writeEvidenceRows(
       metricValueNum: discrepancy.percentDifference,
       metricValueText: JSON.stringify(discrepancy),
       provider: "ALPHATREND_INTERNAL",
-      reasonCode: T3_DATA_REASON_CODES.DATA_VENDOR_DISAGREEMENT,
+      reasonCode:
+        discrepancy.reasonCode ?? T3_DATA_REASON_CODES.DATA_VENDOR_DISAGREEMENT,
       securityId: candidate.securityId,
       sourcePayloadHash: hashPayload({
         candidate: candidate.themeCandidateId,

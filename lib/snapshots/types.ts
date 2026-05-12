@@ -71,6 +71,7 @@ export type SnapshotThemeInput = {
   excludedCategories: unknown;
   invalidationRules: unknown;
   previousDashboardState?: DashboardState;
+  previousSnapshotVersion?: string;
   previousThemeRealityScore?: number;
   requiredEconomicProof: unknown;
   seedEtfs: unknown;
@@ -140,6 +141,7 @@ export type ThemeSnapshotDetail = {
   final_state_counts: Record<string, number>;
   highlight_reason_codes: string[];
   previous_dashboard_state?: DashboardState;
+  previous_snapshot_version?: string;
   previous_theme_reality_score?: number;
   review_priority_score: number;
   theme_reality: ThemeRealityScoreDetail;

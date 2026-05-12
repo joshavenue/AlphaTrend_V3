@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorEnvelope, successEnvelope } from "@/lib/api/envelope";
 import { getPrismaClient } from "@/lib/db/prisma";
-import { buildDashboardThemes } from "@/lib/snapshots/dashboard";
+import { buildDashboardThemesPage } from "@/lib/snapshots/dashboard";
 import {
   parseDashboardState,
   parsePositiveInt,
@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const dashboardStateParam = searchParams.get("dashboardState");
   const statusParam = searchParams.get("status");
+  const limit = parsePositiveInt(searchParams.get("limit"));
   const dashboardState = parseDashboardState(dashboardStateParam);
   const status = parseThemeStatus(statusParam);
 
@@ -37,16 +38,25 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const rows = await buildDashboardThemes(getPrismaClient(), {
-    dashboardState,
-    limit: parsePositiveInt(searchParams.get("limit")),
-    status,
-  });
+  try {
+    const page = await buildDashboardThemesPage(getPrismaClient(), {
+      cursor: searchParams.get("cursor") ?? undefined,
+      dashboardState,
+      limit,
+      status,
+    });
 
-  return NextResponse.json(
-    successEnvelope(rows, {
-      asOf: generatedAt,
-      generatedAt,
-    }),
-  );
+    return NextResponse.json(
+      successEnvelope(page.rows, {
+        asOf: generatedAt,
+        generatedAt,
+        pagination: page.pagination,
+      }),
+    );
+  } catch {
+    return NextResponse.json(
+      errorEnvelope("INTERNAL_ERROR", "Unable to load theme dashboard."),
+      { status: 500 },
+    );
+  }
 }

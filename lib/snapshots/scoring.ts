@@ -3,6 +3,7 @@ import {
   SNAPSHOT_REASON_CODES,
   T11_SNAPSHOT_ALGORITHM_VERSION,
   T11_SNAPSHOT_THRESHOLD_VERSION,
+  T11_SNAPSHOT_VERSION,
 } from "@/lib/snapshots/constants";
 import type {
   SnapshotCandidateInput,
@@ -26,6 +27,10 @@ const DIRECT_BENEFICIARY_TYPES = new Set([
   "DIRECT_BENEFICIARY",
   "MAJOR_BENEFICIARY",
 ]);
+
+function isDirectOrMajorBeneficiary(candidate: SnapshotCandidateInput) {
+  return DIRECT_BENEFICIARY_TYPES.has(candidate.beneficiaryType ?? "");
+}
 
 const ACTIVE_THEME_STATUSES = new Set([
   "ACTIVE_UNSCANNED",
@@ -65,6 +70,16 @@ function signalHasState(
   const state = candidate[layer]?.state;
 
   return state ? states.includes(state) : false;
+}
+
+function candidateReasonCodes(candidate: SnapshotCandidateInput) {
+  return unique([
+    ...candidate.rejectionReasonCodes,
+    ...(candidate.t4?.reasonCodes ?? []),
+    ...(candidate.t8?.reasonCodes ?? []),
+    ...(candidate.t8Detail?.reason_codes ?? []),
+    ...(candidate.t8Detail?.supporting_reason_codes ?? []),
+  ]);
 }
 
 function finalStateCounts(candidates: SnapshotCandidateInput[]) {
@@ -214,7 +229,8 @@ function requiredProofCoverage(evidenceRows: SnapshotEvidenceInput[]) {
 }
 
 function companyLevelEvidenceBreadth(candidates: SnapshotCandidateInput[]) {
-  const supportedCandidates = candidates.filter(
+  const directCandidates = candidates.filter(isDirectOrMajorBeneficiary);
+  const supportedDirectCandidates = directCandidates.filter(
     (candidate) =>
       signalHasState(candidate, "t3", ["VALIDATED", "IMPROVING"]) ||
       signalHasState(candidate, "t4", [
@@ -225,20 +241,35 @@ function companyLevelEvidenceBreadth(candidates: SnapshotCandidateInput[]) {
       ]) ||
       signalHasState(candidate, "t6", ["CORE_ELIGIBLE", "EXPANDED_ELIGIBLE"]),
   ).length;
+  const indirectOrPartialEvidence = candidates.some(
+    (candidate) =>
+      !isDirectOrMajorBeneficiary(candidate) &&
+      (signalHasState(candidate, "t3", ["VALIDATED", "IMPROVING"]) ||
+        signalHasState(candidate, "t4", [
+          "PARTICIPANT",
+          "LEADER",
+          "LEADER_BUT_EXTENDED",
+          "DELAYED_CATCH_UP_CANDIDATE",
+        ]) ||
+        signalHasState(candidate, "t6", [
+          "CORE_ELIGIBLE",
+          "EXPANDED_ELIGIBLE",
+        ])),
+  );
 
-  if (supportedCandidates >= 3) {
+  if (supportedDirectCandidates >= 3) {
     return 20;
   }
 
-  if (supportedCandidates >= 2) {
+  if (supportedDirectCandidates >= 2) {
     return 15;
   }
 
-  if (supportedCandidates === 1) {
+  if (supportedDirectCandidates === 1) {
     return 10;
   }
 
-  if (candidates.length > 0) {
+  if (indirectOrPartialEvidence) {
     return 5;
   }
 
@@ -246,9 +277,7 @@ function companyLevelEvidenceBreadth(candidates: SnapshotCandidateInput[]) {
 }
 
 function directBeneficiaryValidation(candidates: SnapshotCandidateInput[]) {
-  const direct = candidates.filter((candidate) =>
-    DIRECT_BENEFICIARY_TYPES.has(candidate.beneficiaryType ?? ""),
-  );
+  const direct = candidates.filter(isDirectOrMajorBeneficiary);
   const validated = direct.filter((candidate) =>
     signalHasState(candidate, "t3", ["VALIDATED", "IMPROVING"]),
   ).length;
@@ -269,20 +298,24 @@ function directBeneficiaryValidation(candidates: SnapshotCandidateInput[]) {
 }
 
 function themeBasketParticipation(candidates: SnapshotCandidateInput[]) {
-  const participating = candidates.filter((candidate) =>
-    signalHasState(candidate, "t4", [
-      "PARTICIPANT",
-      "LEADER",
-      "LEADER_BUT_EXTENDED",
-      "DELAYED_CATCH_UP_CANDIDATE",
-    ]),
+  const participating = candidates.filter(
+    (candidate) =>
+      isDirectOrMajorBeneficiary(candidate) &&
+      signalHasState(candidate, "t4", [
+        "PARTICIPANT",
+        "LEADER",
+        "LEADER_BUT_EXTENDED",
+        "DELAYED_CATCH_UP_CANDIDATE",
+      ]),
   );
   const hasThemeRs = candidates.some((candidate) =>
-    candidate.t4?.reasonCodes.some(
-      (code) =>
-        code === SNAPSHOT_REASON_CODES.PRICE_RS_VS_THEME_POSITIVE ||
-        code === SNAPSHOT_REASON_CODES.PRICE_THEME_BASKET_PROXY_USED,
-    ),
+    isDirectOrMajorBeneficiary(candidate)
+      ? candidate.t4?.reasonCodes.some(
+          (code) =>
+            code === SNAPSHOT_REASON_CODES.PRICE_RS_VS_THEME_POSITIVE ||
+            code === SNAPSHOT_REASON_CODES.PRICE_THEME_BASKET_PROXY_USED,
+        )
+      : false,
   );
 
   if (participating.length >= 3 && hasThemeRs) {
@@ -414,12 +447,29 @@ function classifyDashboardState(input: {
   );
   const severeData = severeDataWarning(input.candidates);
   const cleanFailureCount = input.noTradeCount + input.wrongTickerCount;
+  const qualityCandidates = input.candidates.filter(
+    (candidate) =>
+      (candidate.finalState &&
+        INVESTABLE_FINAL_STATES.has(candidate.finalState)) ||
+      signalHasState(candidate, "t4", [
+        "PARTICIPANT",
+        "LEADER",
+        "LEADER_BUT_EXTENDED",
+        "DELAYED_CATCH_UP_CANDIDATE",
+      ]),
+  );
+  const lateValuationCandidates = qualityCandidates.filter((candidate) =>
+    candidateReasonCodes(candidate).some(
+      (code) => code === "VALUATION_EXPENSIVE" || code === "VALUATION_EXTREME",
+    ),
+  ).length;
 
   if (!ACTIVE_THEME_STATUSES.has(input.theme.status)) {
     return "REJECTED_INACTIVE";
   }
 
   if (
+    input.theme.previousSnapshotVersion === T11_SNAPSHOT_VERSION &&
     input.theme.previousThemeRealityScore !== undefined &&
     input.theme.previousThemeRealityScore - input.themeRealityScore >= 20
   ) {
@@ -433,6 +483,16 @@ function classifyDashboardState(input: {
       cleanFailureCount === scoredCandidates.length)
   ) {
     return "NO_CLEAN_EXPRESSION";
+  }
+
+  if (
+    input.themeRealityScore >= 60 &&
+    input.investableCandidateCount > 0 &&
+    qualityCandidates.length >= 2 &&
+    lateValuationCandidates >=
+      Math.max(1, Math.ceil(qualityCandidates.length * 0.5))
+  ) {
+    return "CROWDED_LATE";
   }
 
   if (
@@ -601,9 +661,7 @@ export function computeThemeSnapshot(input: {
       )
       .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
   const topDirectBeneficiaries = candidates
-    .filter((candidate) =>
-      DIRECT_BENEFICIARY_TYPES.has(candidate.beneficiaryType ?? ""),
-    )
+    .filter(isDirectOrMajorBeneficiary)
     .sort(byPriorityThenTicker)
     .slice(0, 5)
     .map(tickerRow);
@@ -689,6 +747,7 @@ export function buildSnapshotDetail(input: {
     final_state_counts: finalStateCounts(input.candidates),
     highlight_reason_codes: input.computation.highlightReasonCodes,
     previous_dashboard_state: input.theme.previousDashboardState,
+    previous_snapshot_version: input.theme.previousSnapshotVersion,
     previous_theme_reality_score: input.theme.previousThemeRealityScore,
     review_priority_score: input.computation.reviewPriorityScore,
     theme_reality: input.computation.themeReality,

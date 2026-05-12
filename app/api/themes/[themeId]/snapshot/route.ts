@@ -15,7 +15,16 @@ type RouteContext = {
 export async function GET(_request: NextRequest, context: RouteContext) {
   const { themeId } = await context.params;
   const generatedAt = new Date().toISOString();
-  const data = await buildThemeSnapshotView(getPrismaClient(), themeId);
+  let data: Awaited<ReturnType<typeof buildThemeSnapshotView>>;
+
+  try {
+    data = await buildThemeSnapshotView(getPrismaClient(), themeId);
+  } catch {
+    return NextResponse.json(
+      errorEnvelope("INTERNAL_ERROR", "Unable to load theme snapshot."),
+      { status: 500 },
+    );
+  }
 
   if (!data) {
     return NextResponse.json(

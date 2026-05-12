@@ -298,6 +298,7 @@ async function loadEvidenceRows(
       evidenceId: true,
       fetchedAt: true,
       freshnessScore: true,
+      jobRunId: true,
       metricName: true,
       metricValueText: true,
       reasonCode: true,
@@ -350,6 +351,42 @@ function buildT8DetailByEvidenceId(
   return detailByEvidenceId;
 }
 
+function snapshotDetail(source: unknown) {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  return source as ThemeSnapshotDetail;
+}
+
+function buildSnapshotDetailByJobRunId(
+  evidenceRows: Awaited<ReturnType<typeof loadEvidenceRows>>,
+) {
+  const detailByJobRunId = new Map<string, ThemeSnapshotDetail>();
+
+  for (const row of evidenceRows) {
+    if (
+      row.metricName !== T11_SNAPSHOT_DETAIL_METRIC ||
+      !row.metricValueText ||
+      !row.jobRunId
+    ) {
+      continue;
+    }
+
+    try {
+      const detail = snapshotDetail(JSON.parse(row.metricValueText));
+
+      if (detail) {
+        detailByJobRunId.set(row.jobRunId, detail);
+      }
+    } catch {
+      // Ignore malformed historical detail previews; snapshots remain buildable.
+    }
+  }
+
+  return detailByJobRunId;
+}
+
 function candidateInput(
   candidate: CandidateForSnapshot,
   detailByEvidenceId: Map<string, ExpressionDecisionDetail>,
@@ -382,8 +419,14 @@ function candidateInput(
   };
 }
 
-function snapshotThemeInput(theme: ThemeForSnapshot): SnapshotThemeInput {
+function snapshotThemeInput(
+  theme: ThemeForSnapshot,
+  previousDetail?: ThemeSnapshotDetail,
+): SnapshotThemeInput {
   const previous = theme.snapshots[0];
+  const previousSnapshotVersion = previousDetail
+    ? `${previousDetail.algorithm_version}:${previousDetail.threshold_version}`
+    : undefined;
 
   return {
     directBeneficiaryCategories: theme.directBeneficiaryCategories,
@@ -391,6 +434,7 @@ function snapshotThemeInput(theme: ThemeForSnapshot): SnapshotThemeInput {
     excludedCategories: theme.excludedCategories,
     invalidationRules: theme.invalidationRules,
     previousDashboardState: previous?.dashboardState,
+    previousSnapshotVersion,
     previousThemeRealityScore: decimalNumber(previous?.themeRealityScore),
     requiredEconomicProof: theme.requiredEconomicProof,
     seedEtfs: theme.seedEtfs,
@@ -566,6 +610,7 @@ export async function buildThemeSnapshots(
     }
 
     const detailByEvidenceId = buildT8DetailByEvidenceId(evidenceRows);
+    const detailByJobRunId = buildSnapshotDetailByJobRunId(evidenceRows);
     const warnings: SnapshotWarning[] = [];
     const summaries: SnapshotThemeSummary[] = [];
     const date = snapshotDate();
@@ -574,7 +619,10 @@ export async function buildThemeSnapshots(
       const candidates = theme.candidates.map((candidate) =>
         candidateInput(candidate, detailByEvidenceId),
       );
-      const themeInput = snapshotThemeInput(theme);
+      const previousDetail = theme.snapshots[0]?.jobRunId
+        ? detailByJobRunId.get(theme.snapshots[0].jobRunId)
+        : undefined;
+      const themeInput = snapshotThemeInput(theme, previousDetail);
       const computation = computeThemeSnapshot({
         candidates,
         evidenceRows: evidenceByTheme.get(theme.themeId) ?? [],

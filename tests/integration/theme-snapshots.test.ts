@@ -314,6 +314,25 @@ describe.skipIf(!process.env.DATABASE_URL)(
           ),
         ).toBe(true);
 
+        await prisma.themeSnapshot.update({
+          data: {
+            dashboardState: "NO_CLEAN_EXPRESSION",
+          },
+          where: {
+            themeSnapshotId: snapshots[0].themeSnapshotId,
+          },
+        });
+
+        const staleStateDashboard = await buildDashboardThemes(prisma, {
+          dashboardState: "NO_CLEAN_EXPRESSION",
+        });
+
+        expect(
+          staleStateDashboard.some(
+            (row) => row?.source_theme_code === themeCode,
+          ),
+        ).toBe(false);
+
         const report = await buildSnapshotReport(prisma, themeCode);
 
         expect("theme_snapshot" in report).toBe(true);

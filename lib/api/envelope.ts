@@ -4,6 +4,11 @@ export type ApiMeta = {
   requestId: string;
   generatedAt: string;
   asOf?: string;
+  pagination?: {
+    limit: number;
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
 };
 
 export type ApiSuccessEnvelope<T> = {
@@ -39,6 +44,7 @@ export function successEnvelope<T>(
       requestId: meta.requestId ?? createRequestId(),
       generatedAt,
       asOf: meta.asOf ?? generatedAt,
+      pagination: meta.pagination,
     },
   };
 }

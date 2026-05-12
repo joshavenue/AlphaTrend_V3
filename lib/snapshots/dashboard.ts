@@ -13,6 +13,7 @@ import type { SnapshotDbClient } from "@/lib/snapshots/types";
 import { isUuid } from "@/lib/util/uuid";
 
 type DashboardQuery = {
+  cursor?: string;
   dashboardState?: DashboardState;
   limit?: number;
   status?: ThemeDefinitionStatus;
@@ -31,6 +32,17 @@ const SIGNAL_LAYERS = [
   T6_SIGNAL_LAYER,
   T8_SIGNAL_LAYER,
 ] as const;
+
+const DASHBOARD_STATE_PRIORITY = new Map<DashboardState, number>([
+  ["WORTH_CHECKING_OUT", 1],
+  ["CONFIRMED_BUT_EXTENDED", 2],
+  ["EARLY_WATCHLIST", 3],
+  ["NO_CLEAN_EXPRESSION", 4],
+  ["CROWDED_LATE", 5],
+  ["FADING", 6],
+  ["INSUFFICIENT_EVIDENCE", 7],
+  ["REJECTED_INACTIVE", 8],
+]);
 
 function themeWhere(themeRef?: string) {
   if (!themeRef) {
@@ -155,6 +167,45 @@ function serializeSnapshot(snapshot: {
   };
 }
 
+type DashboardThemeRow = {
+  default_dashboard_state: DashboardState;
+  economic_mechanism_summary: string | null;
+  short_description: string | null;
+  snapshot: ReturnType<typeof serializeSnapshot> | null;
+  source_theme_code: string | null;
+  status: ThemeDefinitionStatus;
+  theme_id: string;
+  theme_name: string;
+  theme_slug: string;
+};
+
+function dashboardPriority(row: DashboardThemeRow) {
+  return row.snapshot
+    ? (DASHBOARD_STATE_PRIORITY.get(row.snapshot.dashboard_state) ?? 99)
+    : (DASHBOARD_STATE_PRIORITY.get(row.default_dashboard_state) ?? 99);
+}
+
+function timestampMs(value: string | null | undefined) {
+  return value ? Date.parse(value) || 0 : 0;
+}
+
+function compareDashboardRows(
+  left: DashboardThemeRow,
+  right: DashboardThemeRow,
+) {
+  return (
+    dashboardPriority(left) - dashboardPriority(right) ||
+    (right.snapshot?.theme_review_priority_score ?? -1) -
+      (left.snapshot?.theme_review_priority_score ?? -1) ||
+    timestampMs(right.snapshot?.last_scanned_at) -
+      timestampMs(left.snapshot?.last_scanned_at) ||
+    (left.source_theme_code ?? "").localeCompare(
+      right.source_theme_code ?? "",
+    ) ||
+    left.theme_name.localeCompare(right.theme_name)
+  );
+}
+
 function latestSignal<T extends { computedAt: Date; signalLayer: string }>(
   rows: T[],
   signalLayer: (typeof SIGNAL_LAYERS)[number],
@@ -186,6 +237,15 @@ export async function buildDashboardThemes(
   prisma: SnapshotDbClient,
   query: DashboardQuery = {},
 ) {
+  const page = await buildDashboardThemesPage(prisma, query);
+
+  return page.rows;
+}
+
+export async function buildDashboardThemesPage(
+  prisma: SnapshotDbClient,
+  query: DashboardQuery = {},
+) {
   const themes = await prisma.themeDefinition.findMany({
     include: {
       snapshots: {
@@ -198,22 +258,11 @@ export async function buildDashboardThemes(
           },
         ],
         take: 1,
-        where: query.dashboardState
-          ? {
-              dashboardState: query.dashboardState,
-            }
-          : undefined,
       },
     },
-    orderBy: [
-      {
-        sourceThemeCode: "asc",
-      },
-      {
-        themeName: "asc",
-      },
-    ],
-    take: limited(query.limit),
+    orderBy: {
+      sourceThemeCode: "asc",
+    },
     where: {
       status: query.status
         ? query.status
@@ -222,14 +271,10 @@ export async function buildDashboardThemes(
           },
     },
   });
-
-  return themes
-    .map((theme) => {
+  const limit = limited(query.limit);
+  const rows = themes
+    .map((theme): DashboardThemeRow => {
       const snapshot = theme.snapshots[0];
-
-      if (query.dashboardState && !snapshot) {
-        return undefined;
-      }
 
       return {
         default_dashboard_state: theme.defaultDashboardState,
@@ -243,7 +288,27 @@ export async function buildDashboardThemes(
         theme_slug: theme.themeSlug,
       };
     })
-    .filter(Boolean);
+    .filter((row) =>
+      query.dashboardState
+        ? row.snapshot?.dashboard_state === query.dashboardState
+        : true,
+    )
+    .sort(compareDashboardRows);
+  const cursorIndex = query.cursor
+    ? rows.findIndex((row) => row.theme_id === query.cursor)
+    : -1;
+  const startIndex = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+  const pageRows = rows.slice(startIndex, startIndex + limit);
+  const hasMore = rows.length > startIndex + limit;
+
+  return {
+    pagination: {
+      hasMore,
+      limit,
+      nextCursor: hasMore ? (pageRows.at(-1)?.theme_id ?? null) : null,
+    },
+    rows: pageRows,
+  };
 }
 
 export async function buildThemeSnapshotView(

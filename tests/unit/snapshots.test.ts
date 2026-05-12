@@ -162,6 +162,156 @@ describe("Phase 11 theme snapshot scoring", () => {
     expect(result.leaderButExtendedCount).toBe(2);
   });
 
+  it("classifies broad expensive leaders as crowded late", () => {
+    const result = computeThemeSnapshot({
+      candidates: [
+        candidate("AAA", {
+          finalState: "LEADER_BUT_EXTENDED",
+          t4: {
+            evidenceIds: ["AAA-t4"],
+            reasonCodes: ["PRICE_LEADER_EXTENDED", "VALUATION_EXTREME"],
+            score: 82,
+            state: "LEADER_BUT_EXTENDED",
+          },
+        }),
+        candidate("BBB", {
+          finalState: "LEADER_BUT_EXTENDED",
+          t4: {
+            evidenceIds: ["BBB-t4"],
+            reasonCodes: ["PRICE_LEADER_EXTENDED", "VALUATION_EXPENSIVE"],
+            score: 82,
+            state: "LEADER_BUT_EXTENDED",
+          },
+        }),
+      ],
+      evidenceRows: evidence(),
+      theme: theme(),
+    });
+
+    expect(result.dashboardState).toBe("CROWDED_LATE");
+    expect(result.leaderButExtendedCount).toBe(2);
+  });
+
+  it("does not let indirect/watchlist evidence create high theme reality", () => {
+    const result = computeThemeSnapshot({
+      candidates: [
+        candidate("AAA", {
+          beneficiaryType: "INDIRECT_BENEFICIARY",
+          finalState: "WATCHLIST_ONLY",
+          t8: {
+            evidenceIds: ["AAA-t8"],
+            reasonCodes: ["DECISION_WATCHLIST_ONLY"],
+            score: 50,
+            state: "WATCHLIST_ONLY",
+          },
+          t8Detail: {
+            algorithm_version: "test",
+            blocking_reason_codes: [],
+            data_freshness_warning: false,
+            display_group: "Watchlist only",
+            evidence_count: 4,
+            expression: "watch",
+            final_state: "WATCHLIST_ONLY",
+            next_state_to_watch: "direct exposure proof",
+            primary_reason: "DECISION_WATCHLIST_ONLY",
+            reason_codes: ["DECISION_WATCHLIST_ONLY"],
+            review_priority_score: 50,
+            supporting_reason_codes: [],
+            threshold_version: "test",
+          },
+        }),
+        candidate("BBB", {
+          beneficiaryType: "INDIRECT_BENEFICIARY",
+          finalState: "WATCHLIST_ONLY",
+          t8: {
+            evidenceIds: ["BBB-t8"],
+            reasonCodes: ["DECISION_WATCHLIST_ONLY"],
+            score: 50,
+            state: "WATCHLIST_ONLY",
+          },
+          t8Detail: {
+            algorithm_version: "test",
+            blocking_reason_codes: [],
+            data_freshness_warning: false,
+            display_group: "Watchlist only",
+            evidence_count: 4,
+            expression: "watch",
+            final_state: "WATCHLIST_ONLY",
+            next_state_to_watch: "direct exposure proof",
+            primary_reason: "DECISION_WATCHLIST_ONLY",
+            reason_codes: ["DECISION_WATCHLIST_ONLY"],
+            review_priority_score: 50,
+            supporting_reason_codes: [],
+            threshold_version: "test",
+          },
+        }),
+      ],
+      evidenceRows: evidence(),
+      theme: theme(),
+    });
+
+    expect(result.directBeneficiaryCount).toBe(0);
+    expect(result.themeReality.components.company_level_evidence_breadth).toBe(
+      5,
+    );
+    expect(result.themeReality.components.direct_beneficiary_validation).toBe(
+      0,
+    );
+    expect(result.themeReality.components.theme_basket_participation).toBe(0);
+    expect(result.themeReality.final_score).toBe(55);
+    expect(result.dashboardState).toBe("EARLY_WATCHLIST");
+  });
+
+  it("does not mark fading when the prior snapshot used an older algorithm version", () => {
+    const result = computeThemeSnapshot({
+      candidates: [
+        candidate("AAA", {
+          beneficiaryType: "INDIRECT_BENEFICIARY",
+          finalState: "WATCHLIST_ONLY",
+          t8: {
+            evidenceIds: ["AAA-t8"],
+            reasonCodes: ["DECISION_WATCHLIST_ONLY"],
+            score: 50,
+            state: "WATCHLIST_ONLY",
+          },
+        }),
+      ],
+      evidenceRows: evidence(),
+      theme: theme({
+        previousSnapshotVersion: "t11_theme_snapshot_v1:v3_mvp_2026_05_10",
+        previousThemeRealityScore: 80,
+      }),
+    });
+
+    expect(result.themeReality.final_score).toBe(55);
+    expect(result.dashboardState).toBe("EARLY_WATCHLIST");
+  });
+
+  it("marks fading when a comparable prior snapshot drops by at least 20 points", () => {
+    const result = computeThemeSnapshot({
+      candidates: [
+        candidate("AAA", {
+          beneficiaryType: "INDIRECT_BENEFICIARY",
+          finalState: "WATCHLIST_ONLY",
+          t8: {
+            evidenceIds: ["AAA-t8"],
+            reasonCodes: ["DECISION_WATCHLIST_ONLY"],
+            score: 50,
+            state: "WATCHLIST_ONLY",
+          },
+        }),
+      ],
+      evidenceRows: evidence(),
+      theme: theme({
+        previousSnapshotVersion: "t11_theme_snapshot_v2:v3_mvp_2026_05_10",
+        previousThemeRealityScore: 80,
+      }),
+    });
+
+    expect(result.themeReality.final_score).toBe(55);
+    expect(result.dashboardState).toBe("FADING");
+  });
+
   it("does not call a high-reality theme clean when every ticker fails expression", () => {
     const result = computeThemeSnapshot({
       candidates: [

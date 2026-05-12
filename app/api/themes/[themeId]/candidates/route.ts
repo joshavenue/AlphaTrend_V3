@@ -29,11 +29,20 @@ export async function GET(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const data = await buildThemeCandidatesView(getPrismaClient(), themeId, {
-    displayGroup: searchParams.get("displayGroup") ?? undefined,
-    finalState,
-    limit: parsePositiveInt(searchParams.get("limit")),
-  });
+  let data: Awaited<ReturnType<typeof buildThemeCandidatesView>>;
+
+  try {
+    data = await buildThemeCandidatesView(getPrismaClient(), themeId, {
+      displayGroup: searchParams.get("displayGroup") ?? undefined,
+      finalState,
+      limit: parsePositiveInt(searchParams.get("limit")),
+    });
+  } catch {
+    return NextResponse.json(
+      errorEnvelope("INTERNAL_ERROR", "Unable to load theme candidates."),
+      { status: 500 },
+    );
+  }
 
   if (!data) {
     return NextResponse.json(

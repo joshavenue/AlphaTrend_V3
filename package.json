@@ -44,7 +44,9 @@
     "snapshots:report": "tsx scripts/snapshots-report.ts",
     "job:theme-scan": "tsx scripts/placeholder-job.ts theme-scan",
     "job:snapshots": "tsx scripts/snapshots-build.ts --all",
-    "job:alerts": "tsx scripts/placeholder-job.ts alerts",
+    "alerts:evaluate": "tsx scripts/alerts-evaluate.ts",
+    "alerts:list": "tsx scripts/alerts-list.ts",
+    "job:alerts": "tsx scripts/alerts-evaluate.ts --all",
     "verify:docs": "tsx scripts/verify-docs.ts"
   },
   "dependencies": {

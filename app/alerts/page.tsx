@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AlertActions } from "@/components/alert-actions";
 import { AppShell } from "@/components/app-shell";
 import { ReasonChip } from "@/components/reason-chip";
 import { requirePageSession } from "@/lib/auth/server";
@@ -32,8 +33,8 @@ export default async function AlertsPage() {
           </p>
           <h1 className="mt-1 text-lg font-semibold">Monitor state changes</h1>
           <p className="mt-1 text-sm text-secondary">
-            Phase 12 reads stored alerts only. Alert generation and transition
-            comparison start in Phase 13.
+            Stored alerts are created by the backend state-history engine and
+            remain available for audit after they are read or dismissed.
           </p>
         </section>
 
@@ -92,6 +93,10 @@ export default async function AlertsPage() {
                     <div>
                       <p className="font-semibold">{alert.title}</p>
                       <p className="text-secondary">{alert.message}</p>
+                      <p className="mt-1 font-mono text-[10px] uppercase text-muted">
+                        {alert.severity} / {alert.alert_type}
+                        {alert.read_at ? " / read" : " / unread"}
+                      </p>
                     </div>
                     <span className="font-mono text-[10px] text-muted">
                       {compactDateTime(alert.created_at)}
@@ -106,6 +111,13 @@ export default async function AlertsPage() {
                         themeId={alert.theme?.theme_id}
                       />
                     ))}
+                  </div>
+                  <div className="mt-2">
+                    <AlertActions
+                      alertId={alert.alert_id}
+                      dismissedAt={alert.dismissed_at}
+                      readAt={alert.read_at}
+                    />
                   </div>
                 </article>
               ))}

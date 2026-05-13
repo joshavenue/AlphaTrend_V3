@@ -63,6 +63,9 @@ describe("Phase 12 auth and UI contract", () => {
       "LIQUIDITY_EXPANDED_ELIGIBLE",
       "FRAGILITY_CONVERTIBLE_DEBT",
       "DISPERSION_SINGLE_NAME_RISK",
+      "ALERT_THEME_STATE_CHANGED",
+      "ALERT_NO_TRADE_TRIGGERED",
+      "ALERT_INVALIDATION_TRIGGERED",
     ]) {
       expect(getReasonMeta(code).displayLabel).not.toBe("Unrecognized reason");
     }

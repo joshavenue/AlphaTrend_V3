@@ -23,6 +23,76 @@ const meta = (
 });
 
 export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
+  ALERT_DELAYED_CATCHUP: meta(
+    "Delayed catch-up alert",
+    "A stored alert was created because a ticker moved into delayed catch-up status.",
+    "INFO",
+  ),
+  ALERT_DILUTION_WARNING: meta(
+    "Dilution alert",
+    "A stored alert was created because dilution risk changed meaningfully.",
+    "WARNING",
+  ),
+  ALERT_EXPOSURE_CONFIRMED: meta(
+    "Exposure confirmed alert",
+    "A stored alert was created because exposure purity improved into a confirmed state.",
+    "POSITIVE",
+  ),
+  ALERT_EXPOSURE_REJECTED: meta(
+    "Exposure rejected alert",
+    "A stored alert was created because exposure purity moved into a rejected state.",
+    "CAUTION",
+  ),
+  ALERT_FINAL_STATE_CHANGED: meta(
+    "Final state alert",
+    "A stored alert was created because the final expression state changed.",
+    "INFO",
+  ),
+  ALERT_FUNDAMENTALS_DETERIORATED: meta(
+    "Fundamentals deteriorated alert",
+    "A stored alert was created because the fundamental validation state weakened.",
+    "WARNING",
+  ),
+  ALERT_FUNDAMENTALS_VALIDATED: meta(
+    "Fundamentals validated alert",
+    "A stored alert was created because fundamentals moved into a validated state.",
+    "POSITIVE",
+  ),
+  ALERT_INVALIDATION_TRIGGERED: meta(
+    "Invalidation alert",
+    "A stored alert was created because an invalidation state was triggered.",
+    "BLOCKER",
+  ),
+  ALERT_LEADER_BUT_EXTENDED: meta(
+    "Leader extended alert",
+    "A stored alert was created because price state moved to leader but extended.",
+    "WARNING",
+  ),
+  ALERT_LIQUIDITY_WARNING: meta(
+    "Liquidity alert",
+    "A stored alert was created because liquidity state changed meaningfully.",
+    "WARNING",
+  ),
+  ALERT_NO_TRADE_TRIGGERED: meta(
+    "No-trade alert",
+    "A stored alert was created because a no-trade state was triggered.",
+    "WARNING",
+  ),
+  ALERT_PRICE_STATE_CHANGED: meta(
+    "Price state alert",
+    "A stored alert was created because price participation state changed.",
+    "INFO",
+  ),
+  ALERT_SUPPRESSED_COOLDOWN: meta(
+    "Cooldown suppressed",
+    "A potential alert was suppressed by the alert cooldown rule.",
+    "INFO",
+  ),
+  ALERT_THEME_STATE_CHANGED: meta(
+    "Theme state alert",
+    "A stored alert was created because the theme dashboard state changed.",
+    "INFO",
+  ),
   DATA_MISSING: meta(
     "Data missing",
     "A required provider or internal data point was not available.",

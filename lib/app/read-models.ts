@@ -19,6 +19,7 @@ import { T1_SIGNAL_LAYER } from "@/lib/exposure/constants";
 import { T3_SIGNAL_LAYER } from "@/lib/fundamentals/constants";
 import { T6_SIGNAL_LAYER } from "@/lib/liquidity/constants";
 import { T4_SIGNAL_LAYER } from "@/lib/price/constants";
+import { getReasonMeta } from "@/lib/ui/reasons";
 import { isUuid } from "@/lib/util/uuid";
 
 const SIGNAL_LAYERS = [
@@ -67,6 +68,19 @@ function stringArray(value: unknown) {
   return value.flatMap((entry) =>
     typeof entry === "string" && entry.length > 0 ? [entry] : [],
   );
+}
+
+function reasonMetadata(codes: string[]) {
+  return codes.map((code) => {
+    const meta = getReasonMeta(code);
+
+    return {
+      code: meta.code,
+      description: meta.description,
+      display_label: meta.displayLabel,
+      severity: meta.severity,
+    };
+  });
 }
 
 function themeWhere(themeRef: string) {
@@ -535,6 +549,7 @@ export async function buildEvidencePage(input: {
 }
 
 export async function buildAlertsPage(input: {
+  alertType?: string | null;
   cursor?: string | null;
   deliveryStatus?: AlertDeliveryStatus | null;
   limit?: number;
@@ -591,6 +606,7 @@ export async function buildAlertsPage(input: {
     ],
     take: limit + 1,
     where: {
+      alertType: input.alertType ?? undefined,
       deliveryStatus: input.deliveryStatus ?? undefined,
       dismissedAt: null,
       ...(cursor && createdCursor
@@ -640,6 +656,7 @@ export async function buildAlertsPage(input: {
       message: row.message,
       read_at: dateIso(row.readAt),
       reason_codes: stringArray(row.reasonCodes),
+      reason_metadata: reasonMetadata(stringArray(row.reasonCodes)),
       security: row.security
         ? {
             company_name: row.security.companyName,
@@ -649,6 +666,7 @@ export async function buildAlertsPage(input: {
         : null,
       sent_at: dateIso(row.sentAt),
       severity: row.severity,
+      theme_candidate_id: row.themeCandidateId,
       theme: row.theme
         ? {
             source_theme_code: row.theme.sourceThemeCode,
@@ -660,6 +678,121 @@ export async function buildAlertsPage(input: {
       title: row.title,
     })),
   };
+}
+
+export async function buildAlertDetail(alertId: string) {
+  const row = await getPrismaClient().alert.findUnique({
+    include: {
+      security: {
+        select: {
+          canonicalTicker: true,
+          companyName: true,
+          securityId: true,
+        },
+      },
+      signalState: {
+        select: {
+          cooldownUntil: true,
+          currentScore: true,
+          currentState: true,
+          previousScore: true,
+          previousState: true,
+          signalStateId: true,
+          stateChangedAt: true,
+          stateType: true,
+        },
+      },
+      theme: {
+        select: {
+          sourceThemeCode: true,
+          themeId: true,
+          themeName: true,
+          themeSlug: true,
+        },
+      },
+    },
+    where: {
+      alertId,
+    },
+  });
+
+  if (!row) {
+    return null;
+  }
+
+  const reasonCodes = stringArray(row.reasonCodes);
+
+  return {
+    alert_id: row.alertId,
+    alert_type: row.alertType,
+    created_at: row.createdAt.toISOString(),
+    delivery_status: row.deliveryStatus,
+    dismissed_at: dateIso(row.dismissedAt),
+    message: row.message,
+    read_at: dateIso(row.readAt),
+    reason_codes: reasonCodes,
+    reason_metadata: reasonMetadata(reasonCodes),
+    security: row.security
+      ? {
+          company_name: row.security.companyName,
+          security_id: row.security.securityId,
+          ticker: row.security.canonicalTicker,
+        }
+      : null,
+    sent_at: dateIso(row.sentAt),
+    severity: row.severity,
+    signal_state: row.signalState
+      ? {
+          cooldown_until: dateIso(row.signalState.cooldownUntil),
+          current_score: decimalNumber(row.signalState.currentScore),
+          current_state: row.signalState.currentState,
+          previous_score: decimalNumber(row.signalState.previousScore),
+          previous_state: row.signalState.previousState,
+          signal_state_id: row.signalState.signalStateId,
+          state_changed_at: row.signalState.stateChangedAt.toISOString(),
+          state_type: row.signalState.stateType,
+        }
+      : null,
+    theme: row.theme
+      ? {
+          source_theme_code: row.theme.sourceThemeCode,
+          theme_id: row.theme.themeId,
+          theme_name: row.theme.themeName,
+          theme_slug: row.theme.themeSlug,
+        }
+      : null,
+    theme_candidate_id: row.themeCandidateId,
+    title: row.title,
+  };
+}
+
+export async function markAlertRead(alertId: string) {
+  const updated = await getPrismaClient().alert.updateMany({
+    data: {
+      readAt: new Date(),
+    },
+    where: {
+      alertId,
+      dismissedAt: null,
+    },
+  });
+
+  return updated.count > 0;
+}
+
+export async function dismissAlert(alertId: string) {
+  const now = new Date();
+  const updated = await getPrismaClient().alert.updateMany({
+    data: {
+      dismissedAt: now,
+      readAt: now,
+    },
+    where: {
+      alertId,
+    },
+  });
+
+  return updated.count > 0;
 }
 
 export async function buildUnreadAlertCount() {

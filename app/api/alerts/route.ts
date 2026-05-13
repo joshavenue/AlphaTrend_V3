@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const page = await buildAlertsPage({
+      alertType: params.get("alertType"),
       cursor,
       deliveryStatus: params.get(
         "deliveryStatus",

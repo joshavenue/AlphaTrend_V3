@@ -125,15 +125,23 @@ export type AlertRow = {
   alert_type: string;
   created_at: string;
   delivery_status: string;
+  dismissed_at: string | null;
   message: string;
   read_at: string | null;
   reason_codes: string[];
+  reason_metadata?: {
+    code: string;
+    description: string;
+    display_label: string;
+    severity: string;
+  }[];
   security: {
     company_name: string;
     security_id: string;
     ticker: string;
   } | null;
   severity: string;
+  theme_candidate_id: string | null;
   theme: {
     source_theme_code: string | null;
     theme_id: string;

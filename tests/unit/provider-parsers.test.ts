@@ -356,7 +356,11 @@ describe("provider parsers", () => {
             "Award Amount": 123,
             "Award ID": "A1",
             "Award Type": "A",
+            "NAICS Code": "336411",
+            "PSC Code": "1550",
+            "Recipient DUNS": "123456789",
             "Recipient Name": "Example Recipient",
+            "Recipient UEI": "UEI123456789",
           },
         ],
       }),
@@ -364,7 +368,11 @@ describe("provider parsers", () => {
       expect.objectContaining({
         awardAmount: 123,
         awardId: "A1",
+        naics: "336411",
+        psc: "1550",
+        recipientDuns: "123456789",
         recipientName: "Example Recipient",
+        recipientUei: "UEI123456789",
       }),
     ]);
   });

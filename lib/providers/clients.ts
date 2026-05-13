@@ -1010,12 +1010,16 @@ export async function fetchUsaSpendingAwards(
       fields: [
         "Award ID",
         "Recipient Name",
+        "Recipient UEI",
+        "Recipient DUNS",
         "Award Amount",
         "Awarding Agency",
         "Funding Agency",
         "Award Type",
         "Start Date",
         "End Date",
+        "NAICS Code",
+        "PSC Code",
         "Description",
       ],
       filters: {

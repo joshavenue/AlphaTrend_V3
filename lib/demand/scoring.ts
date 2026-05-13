@@ -140,12 +140,12 @@ export function scoreEconomicDemand(input: {
   const missingGapRows = rows.filter(
     (row) => row.reasonCode === DEMAND_REASON_CODES.DEMAND_PROVIDER_DATA_GAP,
   );
-  const measurableRows = rows.filter(
-    (row) =>
-      row.reasonCode !== DEMAND_REASON_CODES.DEMAND_PROVIDER_DATA_GAP &&
-      row.evidenceGrade !== "D",
+  const nonGapRows = rows.filter(
+    (row) => row.reasonCode !== DEMAND_REASON_CODES.DEMAND_PROVIDER_DATA_GAP,
   );
-  const grade = highestGrade(measurableRows);
+  const grade =
+    highestGrade(nonGapRows) ??
+    (missingGapRows.length > 0 ? ("D" as const) : undefined);
   const coverage = providerCoverage({
     evidenceRows: rows,
     feeds: activeFeeds,
@@ -161,19 +161,16 @@ export function scoreEconomicDemand(input: {
     DEMAND_REASON_CODES.DEMAND_MACRO_CONTEXT_SUPPORT,
   ]);
   const hasOnlyMacro =
-    measurableRows.length > 0 &&
-    hasMacro &&
-    !hasGovernmentAward &&
-    !hasCapacity;
+    nonGapRows.length > 0 && hasMacro && !hasGovernmentAward && !hasCapacity;
   const hasOnlyWeak =
-    measurableRows.length > 0 &&
-    measurableRows.every((row) => row.evidenceGrade === "C");
+    nonGapRows.length > 0 &&
+    nonGapRows.every((row) => row.evidenceGrade === "C");
   const hasContradiction = hasAny(reasonCodes, [
     DEMAND_REASON_CODES.DEMAND_CONTRADICTED,
   ]);
   const maxAge = Math.max(
     0,
-    ...measurableRows.map((row) => dateAgeDays(row.fetchedAt, now)),
+    ...nonGapRows.map((row) => dateAgeDays(row.fetchedAt, now)),
   );
 
   let contractBacklogProof = 0;
@@ -224,7 +221,7 @@ export function scoreEconomicDemand(input: {
     positiveReasonCodes.push(DEMAND_REASON_CODES.DEMAND_MACRO_CONTEXT_SUPPORT);
   }
 
-  if (measurableRows.length === 0) {
+  if (nonGapRows.length === 0) {
     cautionReasonCodes.push(DEMAND_REASON_CODES.DEMAND_PROOF_MISSING);
     capsApplied.push("NO_MEASURABLE_PROOF_CAP_40");
   }
@@ -268,7 +265,7 @@ export function scoreEconomicDemand(input: {
     score = Math.min(score, 59);
   }
 
-  if (measurableRows.length === 0) {
+  if (nonGapRows.length === 0) {
     score = Math.min(score, 40);
   }
 

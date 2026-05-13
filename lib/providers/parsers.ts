@@ -166,12 +166,16 @@ export type EiaDataPoint = {
 export type UsaSpendingAward = {
   awardId?: string;
   recipientName?: string;
+  recipientUei?: string;
+  recipientDuns?: string;
   awardAmount?: number;
   awardingAgency?: string;
   fundingAgency?: string;
   awardType?: string;
   startDate?: string;
   endDate?: string;
+  naics?: string;
+  psc?: string;
   description?: string;
 };
 
@@ -832,7 +836,24 @@ export function parseUsaSpendingAwards(payload: unknown): UsaSpendingAward[] {
         description: asString(row.Description),
         endDate: asString(row["End Date"]),
         fundingAgency: asString(row["Funding Agency"]),
+        naics:
+          asString(row["NAICS Code"]) ??
+          asString(row.NAICS) ??
+          asString(row.naics),
+        psc:
+          asString(row["PSC Code"]) ??
+          asString(row.PSC) ??
+          asString(row["Product or Service Code"]) ??
+          asString(row.psc),
+        recipientDuns:
+          asString(row["Recipient DUNS"]) ??
+          asString(row["Recipient DUNS Number"]) ??
+          asString(row.recipient_duns),
         recipientName: asString(row["Recipient Name"]),
+        recipientUei:
+          asString(row["Recipient UEI"]) ??
+          asString(row["Recipient UEI Number"]) ??
+          asString(row.recipient_uei),
         startDate: asString(row["Start Date"]),
       },
     ];

@@ -482,7 +482,9 @@ async function writeGovernmentAwards(input: {
       mappingMethod: "unmapped_theme_level",
       payloadId: input.result.payloadId,
       provider: "USA_SPENDING" as const,
+      recipientDuns: award.recipientDuns,
       recipientName: award.recipientName,
+      recipientUei: award.recipientUei,
       sourcePayloadHash: sourceHash(input.result),
       startDate: dateFromIso(award.startDate),
       themeId: input.themeId,
@@ -502,6 +504,16 @@ async function writeGovernmentAwards(input: {
     }
 
     if (award.recipientName) {
+      const recipientIdentifier =
+        award.recipientUei ?? award.recipientDuns ?? undefined;
+      const sourceDetail = toJsonValue({
+        award_id: award.awardId,
+        naics: award.naics,
+        psc: award.psc,
+        recipient_duns: award.recipientDuns,
+        recipient_uei: award.recipientUei,
+        source: "usaspending",
+      });
       const mapping = await input.prisma.recipientSecurityMapping.findFirst({
         where: {
           provider: "USA_SPENDING",
@@ -518,12 +530,21 @@ async function writeGovernmentAwards(input: {
             notes:
               "Phase 14 preserves USAspending recipient evidence at theme level until reviewed.",
             provider: "USA_SPENDING",
+            recipientIdentifier,
             recipientName: award.recipientName,
             reviewStatus: "REVIEW_REQUIRED",
-            sourceDetail: toJsonValue({
-              award_id: award.awardId,
-              source: "usaspending",
-            }),
+            sourceDetail,
+          },
+        });
+      } else {
+        await input.prisma.recipientSecurityMapping.update({
+          data: {
+            recipientIdentifier:
+              mapping.recipientIdentifier ?? recipientIdentifier,
+            sourceDetail,
+          },
+          where: {
+            recipientSecurityMappingId: mapping.recipientSecurityMappingId,
           },
         });
       }
@@ -631,14 +652,9 @@ export async function fetchEconomicDemand(
       status: "STARTED",
     },
   });
-  const lockKey = await acquireLock(
-    prisma,
-    jobRun.jobRunId,
-    "economic_demand_fetch",
-    scope,
-  );
+  let lockKey: string | undefined;
   const warnings: DemandWarning[] = [];
-  const themes = await loadThemesForDemand(prisma, options);
+  let themes: ThemeForDemand[] = [];
   const providerResults: ProviderResult<unknown>[] = [];
   let evidenceWritten = 0;
   let feedsFetched = 0;
@@ -646,6 +662,14 @@ export async function fetchEconomicDemand(
   let rowsWritten = 0;
 
   try {
+    lockKey = await acquireLock(
+      prisma,
+      jobRun.jobRunId,
+      "economic_demand_fetch",
+      scope,
+    );
+    themes = await loadThemesForDemand(prisma, options);
+
     for (const theme of themes) {
       const feeds = await upsertThemeDemandMappings({
         prisma,
@@ -829,7 +853,9 @@ export async function fetchEconomicDemand(
     });
     throw error;
   } finally {
-    await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    if (lockKey) {
+      await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    }
   }
 }
 
@@ -889,22 +915,26 @@ export async function scoreEconomicDemandThemes(
       status: "STARTED",
     },
   });
-  const lockKey = await acquireLock(
-    prisma,
-    jobRun.jobRunId,
-    "economic_demand_score",
-    scope,
-  );
+  let lockKey: string | undefined;
   const warnings: DemandWarning[] = [];
-  const themes = await loadThemesForDemand(prisma, options);
-  const evidenceRows = await loadDemandEvidence(
-    prisma,
-    themes.map((theme) => theme.themeId),
-  );
+  let themes: ThemeForDemand[] = [];
+  let evidenceRows: Awaited<ReturnType<typeof loadDemandEvidence>> = [];
   let evidenceWritten = 0;
   let rowsWritten = 0;
 
   try {
+    lockKey = await acquireLock(
+      prisma,
+      jobRun.jobRunId,
+      "economic_demand_score",
+      scope,
+    );
+    themes = await loadThemesForDemand(prisma, options);
+    evidenceRows = await loadDemandEvidence(
+      prisma,
+      themes.map((theme) => theme.themeId),
+    );
+
     const summaries = [];
 
     for (const theme of themes) {
@@ -1026,7 +1056,9 @@ export async function scoreEconomicDemandThemes(
     });
     throw error;
   } finally {
-    await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    if (lockKey) {
+      await releaseLock(prisma, jobRun.jobRunId, lockKey);
+    }
   }
 }
 

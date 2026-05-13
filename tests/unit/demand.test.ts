@@ -177,7 +177,74 @@ describe("Phase 14 economic demand proof", () => {
     });
 
     expect(result.caution_reason_codes).toContain("DEMAND_PROVIDER_DATA_GAP");
-    expect(result.final_score).toBeLessThanOrEqual(40);
+    expect(result.caution_reason_codes).toContain(
+      "DEMAND_ONLY_D_GRADE_EVIDENCE",
+    );
+    expect(result.caps_applied).toContain("ONLY_D_GRADE_EVIDENCE_CAP_35");
+    expect(result.final_score).toBeLessThanOrEqual(35);
+  });
+
+  it("D-grade positive evidence cannot cross the weak-demand cap", () => {
+    const result = scoreEconomicDemand({
+      evidenceRows: [
+        {
+          evidenceGrade: "D",
+          feedId: "eia_electricity_retail_sales",
+          fetchedAt: new Date("2026-05-12T00:00:00.000Z"),
+          metricName: "t2.provider_demand_feed",
+          metricValueNum: 12,
+          provider: "EIA",
+          reasonCode: DEMAND_REASON_CODES.DEMAND_CAPACITY_TIGHTNESS_EVIDENCE,
+        },
+        {
+          evidenceGrade: "D",
+          feedId: "fred_indpro",
+          fetchedAt: new Date("2026-05-12T00:00:00.000Z"),
+          metricName: "t2.provider_demand_feed",
+          provider: "FRED",
+          reasonCode: DEMAND_REASON_CODES.DEMAND_MACRO_CONTEXT_SUPPORT,
+        },
+      ],
+      feeds: feeds("T004"),
+      now: new Date("2026-05-13T00:00:00.000Z"),
+    });
+
+    expect(result.final_score).toBeLessThanOrEqual(35);
+    expect(result.demand_state).toBe("DEMAND_WEAK");
+    expect(result.caps_applied).toContain("ONLY_D_GRADE_EVIDENCE_CAP_35");
+    expect(result.caution_reason_codes).toContain(
+      "DEMAND_ONLY_D_GRADE_EVIDENCE",
+    );
+  });
+
+  it("contradictory demand evidence forces contradicted state and cap", () => {
+    const result = scoreEconomicDemand({
+      evidenceRows: [
+        {
+          evidenceGrade: "A",
+          feedId: "eia_electricity_retail_sales",
+          fetchedAt: new Date("2026-05-12T00:00:00.000Z"),
+          metricName: "t2.provider_demand_feed",
+          metricValueNum: 12,
+          provider: "EIA",
+          reasonCode: DEMAND_REASON_CODES.DEMAND_CAPACITY_TIGHTNESS_EVIDENCE,
+        },
+        {
+          evidenceGrade: "A",
+          feedId: "eia_electricity_retail_sales",
+          fetchedAt: new Date("2026-05-12T00:00:00.000Z"),
+          metricName: "t2.provider_demand_feed",
+          provider: "EIA",
+          reasonCode: DEMAND_REASON_CODES.DEMAND_CONTRADICTED,
+        },
+      ],
+      feeds: feeds("T004"),
+      now: new Date("2026-05-13T00:00:00.000Z"),
+    });
+
+    expect(result.final_score).toBeLessThanOrEqual(30);
+    expect(result.demand_state).toBe("DEMAND_CONTRADICTED");
+    expect(result.caps_applied).toContain("CONTRADICTED_REQUIRED_PROOF_CAP_30");
   });
 
   it("stale macro series reduces score", () => {

@@ -52,6 +52,30 @@ describe("Phase 15 test hardening guards", () => {
     });
   });
 
+  it("blocks arbitrary non-local database hosts unless explicitly allowed", () => {
+    expect(
+      evaluateTestDatabaseGuard({
+        appEnv: "test",
+        databaseUrl: "postgresql://user:secret@203.0.113.10:5432/alphatrend",
+      }),
+    ).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("non-local database host"),
+    });
+
+    expect(
+      evaluateTestDatabaseGuard({
+        allowNonLocalTestDatabase: "1",
+        appEnv: "test",
+        databaseUrl: "postgresql://user:secret@203.0.113.10:5432/alphatrend",
+      }),
+    ).toMatchObject({
+      databaseConfigured: true,
+      host: "203.0.113.10",
+      ok: true,
+    });
+  });
+
   it("requires an explicit database for DB-only commands", () => {
     expect(
       evaluateTestDatabaseGuard({

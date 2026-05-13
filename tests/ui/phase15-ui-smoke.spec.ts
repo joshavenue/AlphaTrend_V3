@@ -408,6 +408,21 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(hasOverflow).toBe(false);
 }
 
+async function expectResponsiveRoute(
+  page: Page,
+  width: number,
+  path: string,
+  assertRoute: () => Promise<void>,
+) {
+  await page.setViewportSize({
+    height: 844,
+    width,
+  });
+  await page.goto(path);
+  await assertRoute();
+  await expectNoHorizontalOverflow(page);
+}
+
 test.beforeAll(seedUiFixture);
 test.afterAll(cleanupUiFixture);
 
@@ -425,13 +440,62 @@ test("dashboard, theme detail, ticker report, evidence, and provider health load
   await expect(page.getByText(themeName)).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.setViewportSize({
-    height: 844,
-    width: 390,
-  });
-  await page.goto("/");
-  await expect(page.getByText(themeName)).toBeVisible();
-  await expectNoHorizontalOverflow(page);
+  for (const width of [320, 375, 390]) {
+    await expectResponsiveRoute(page, width, "/", async () => {
+      await expect(page.getByText(themeName)).toBeVisible();
+    });
+
+    await expectResponsiveRoute(
+      page,
+      width,
+      `/themes/${themeSlug}`,
+      async () => {
+        await expect(
+          page.getByRole("heading", { name: themeName }),
+        ).toBeVisible();
+        await expect(page.getByText(ticker)).toBeVisible();
+      },
+    );
+
+    await expectResponsiveRoute(
+      page,
+      width,
+      `/themes/${themeSlug}/${ticker}`,
+      async () => {
+        await expect(page.getByText("Ticker report")).toBeVisible();
+        await expect(page.getByText("Evidence summary")).toBeVisible();
+      },
+    );
+
+    await expectResponsiveRoute(
+      page,
+      width,
+      `/evidence?themeId=${themeCode}&securityId=${ticker}`,
+      async () => {
+        await expect(
+          page.getByRole("heading", { name: "Evidence ledger" }),
+        ).toBeVisible();
+      },
+    );
+
+    await expectResponsiveRoute(page, width, "/alerts", async () => {
+      await expect(
+        page.getByRole("heading", { name: "Monitor state changes" }),
+      ).toBeVisible();
+    });
+
+    await expectResponsiveRoute(page, width, "/admin/providers", async () => {
+      await expect(
+        page.getByRole("heading", { name: "Provider health" }),
+      ).toBeVisible();
+    });
+
+    await expectResponsiveRoute(page, width, "/admin/jobs", async () => {
+      await expect(
+        page.getByRole("heading", { name: "Job runs" }),
+      ).toBeVisible();
+    });
+  }
 
   await page.setViewportSize({
     height: 900,

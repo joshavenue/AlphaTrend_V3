@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { GET } from "@/app/api/health/route";
 
 describe("health route", () => {
-  it("returns status, environment, and presence-only env details", async () => {
+  it("returns a minimal public status response without env inventory", async () => {
     const response = await GET();
     const body = await response.json();
 
@@ -12,14 +12,11 @@ describe("health route", () => {
     expect(body.data.status).toBe("ok");
     expect(body.data.service).toBe("alphatrend-v3");
     expect(body.data.environment).toBeDefined();
-    expect(body.data.env).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "DATABASE_URL",
-          present: expect.any(Boolean),
-        }),
-      ]),
-    );
+    expect(body.data.database).toBeDefined();
+    expect(body.data.time).toBeDefined();
+    expect(body.data.baseUrl).toBeUndefined();
+    expect(body.data.databaseDetail).toBeUndefined();
+    expect(body.data.env).toBeUndefined();
     expect(body.meta.requestId).toMatch(/^req_/);
     expect(body.meta.generatedAt).toBeDefined();
   });

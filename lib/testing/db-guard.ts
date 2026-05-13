@@ -22,18 +22,6 @@ export type TestDatabaseGuardResult =
     };
 
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
-const MANAGED_DATABASE_HINTS = [
-  "amazonaws.com",
-  "azure.com",
-  "digitalocean.com",
-  "neon.tech",
-  "planetscale",
-  "railway.app",
-  "render.com",
-  "rds.amazonaws.com",
-  "supabase.co",
-  "vercel-storage.com",
-];
 
 function isTrue(value: string | undefined) {
   return value === "1" || value?.toLowerCase() === "true";
@@ -45,12 +33,6 @@ function normalizedDatabaseName(url: URL) {
 
 function isLocalTestHost(hostname: string) {
   return LOCAL_HOSTS.has(hostname) || hostname.startsWith("100.");
-}
-
-function isProductionLikeHost(hostname: string) {
-  const lower = hostname.toLowerCase();
-
-  return MANAGED_DATABASE_HINTS.some((hint) => lower.includes(hint));
 }
 
 export function evaluateTestDatabaseGuard(
@@ -124,15 +106,11 @@ export function evaluateTestDatabaseGuard(
     };
   }
 
-  if (
-    !allowNonLocalTestDatabase &&
-    !isLocalTestHost(hostname) &&
-    isProductionLikeHost(hostname)
-  ) {
+  if (!allowNonLocalTestDatabase && !isLocalTestHost(hostname)) {
     return {
       ok: false,
       reason:
-        "Refusing to run tests against a managed/non-local database host without ALLOW_NONLOCAL_TEST_DATABASE=1.",
+        "Refusing to run tests against a non-local database host without ALLOW_NONLOCAL_TEST_DATABASE=1.",
     };
   }
 

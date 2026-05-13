@@ -25,6 +25,9 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://alphatrend:alphatrend@127.0.0.1:5432/alphatrend
+      APP_BASE_URL: http://127.0.0.1:420
+      APP_ENV: ci-test
+      AUTH_SECRET: ci-test-auth-secret
 
     steps:
       - name: Checkout
@@ -39,6 +42,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Migrate test database
         run: npm run db:deploy
 
@@ -48,8 +54,22 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        run: npm run test
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Regression fixtures
+        run: npm run test:regression
+
+      - name: Static UI smoke
+        run: npm run smoke:ui
 
       - name: Build
         run: npm run build
+
+      - name: Browser smoke
+        env:
+          PLAYWRIGHT_USE_BUILD: "1"
+        run: npm run test:ui

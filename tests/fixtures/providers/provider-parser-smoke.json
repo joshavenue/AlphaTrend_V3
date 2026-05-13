@@ -1,0 +1,35 @@
+{
+  "massiveAggregateBars": {
+    "results": [
+      {
+        "c": 189.98,
+        "h": 190.1,
+        "l": 187.5,
+        "o": 188.4,
+        "t": 1778198400000,
+        "v": 45123000
+      }
+    ]
+  },
+  "secCompanyTickers": {
+    "0": {
+      "cik_str": 320193,
+      "ticker": "AAPL",
+      "title": "Apple Inc."
+    }
+  },
+  "usaSpendingAwards": {
+    "results": [
+      {
+        "Award Amount": 1250000,
+        "Award ID": "W9123456",
+        "Award Type": "A",
+        "NAICS Code": "336411",
+        "PSC Code": "1550",
+        "Recipient DUNS": "123456789",
+        "Recipient Name": "Example Drone Supplier",
+        "Recipient UEI": "UEI123456789"
+      }
+    ]
+  }
+}

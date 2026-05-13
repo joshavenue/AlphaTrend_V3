@@ -12,7 +12,18 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "pretest": "tsx scripts/test-db-guard.ts",
     "test": "vitest run",
+    "pretest:unit": "tsx scripts/test-db-guard.ts",
+    "test:unit": "vitest run tests/unit",
+    "pretest:integration": "tsx scripts/test-db-guard.ts --require-db",
+    "test:integration": "V3_REQUIRE_DATABASE=1 vitest run tests/integration",
+    "pretest:regression": "tsx scripts/test-db-guard.ts",
+    "test:regression": "vitest run tests/regression",
+    "pretest:ui": "tsx scripts/test-db-guard.ts --require-db",
+    "test:ui": "playwright test",
+    "pretest:coverage": "tsx scripts/test-db-guard.ts",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -51,6 +62,7 @@
     "alerts:evaluate": "tsx scripts/alerts-evaluate.ts",
     "alerts:list": "tsx scripts/alerts-list.ts",
     "job:alerts": "tsx scripts/alerts-evaluate.ts --all",
+    "smoke:ui": "tsx scripts/phase15-ui-smoke.ts",
     "verify:docs": "tsx scripts/verify-docs.ts"
   },
   "dependencies": {
@@ -67,6 +79,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.15.6",

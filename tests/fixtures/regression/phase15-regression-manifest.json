@@ -1,0 +1,66 @@
+[
+  {
+    "name": "keyword_only_ai_ticker_rejected",
+    "expected": "Keyword-only theme language is capped and rejected by T1."
+  },
+  {
+    "name": "same_sector_wrong_mechanism_rejected",
+    "expected": "Same-sector-only companies cannot clear exposure purity."
+  },
+  {
+    "name": "direct_beneficiary_validated",
+    "expected": "A direct beneficiary with validated fundamentals and clean market/risk states clears T8 research justification."
+  },
+  {
+    "name": "seed_etf_only_cannot_pass_exposure",
+    "expected": "Seed ETF membership alone is not enough to pass T1."
+  },
+  {
+    "name": "leader_but_extended",
+    "expected": "High-quality but extended leaders remain watchlisted as leader-but-extended."
+  },
+  {
+    "name": "delayed_catchup_candidate",
+    "expected": "Validated exposure/fundamentals with improving price from behind becomes delayed catch-up."
+  },
+  {
+    "name": "severe_dilution_no_trade",
+    "expected": "Severe dilution overrides otherwise strong states and returns no-trade."
+  },
+  {
+    "name": "illiquid_microcap_speculative_only",
+    "expected": "Illiquid microcap evidence creates an illiquidity veto."
+  },
+  {
+    "name": "theme_high_reality_no_clean_expression",
+    "expected": "Strong theme reality cannot rescue the wrong ticker."
+  },
+  {
+    "name": "theme_high_reality_all_extended",
+    "expected": "Extended leaders are not upgraded to cleaner expression just because theme reality is high."
+  },
+  {
+    "name": "stale_price_no_alert",
+    "expected": "Stale price bars produce insufficient price state, not a price leadership event."
+  },
+  {
+    "name": "vendor_disagreement_warning",
+    "expected": "Material SEC/FMP disagreement caps fundamentals and emits a reconciliation warning."
+  },
+  {
+    "name": "manual_seed_not_investable_until_gates_pass",
+    "expected": "Manual seed mappings remain review-only until provider-backed gates pass."
+  },
+  {
+    "name": "price_only_false_alert",
+    "expected": "A price-only setup with weak exposure/fundamentals cannot produce a clean expression."
+  },
+  {
+    "name": "missing_critical_data",
+    "expected": "Missing required signal layers produces insufficient data."
+  },
+  {
+    "name": "no_clean_public_equity_expression",
+    "expected": "High dispersion with proven theme reality prefers basket or ETF over forced single-name output."
+  }
+]

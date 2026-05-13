@@ -26,7 +26,7 @@ describe("Phase 4 theme definition persistence", () => {
 
   it("upserts theme definitions with provenance and default dashboard state", async () => {
     if (!databaseUrl || !prisma) {
-      expect(databaseUrl).toBeUndefined();
+      expect(databaseUrl).toBeFalsy();
       return;
     }
 

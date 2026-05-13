@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "rm -rf .next/types .next/dev/types && tsc --noEmit",
     "pretest": "tsx scripts/test-db-guard.ts",
     "test": "vitest run",
     "pretest:unit": "tsx scripts/test-db-guard.ts",

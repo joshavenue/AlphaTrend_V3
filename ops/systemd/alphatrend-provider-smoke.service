@@ -1,0 +1,10 @@
+[Unit]
+Description=AlphaTrend V3 provider smoke check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/alphatrend
+EnvironmentFile=/srv/alphatrend/.env
+ExecStart=/usr/bin/env npm run smoke:providers

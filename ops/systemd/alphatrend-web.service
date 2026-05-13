@@ -1,0 +1,16 @@
+[Unit]
+Description=AlphaTrend V3 web/API service
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/alphatrend
+EnvironmentFile=/srv/alphatrend/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env npm run start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=AlphaTrend V3 Postgres backup
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/alphatrend
+EnvironmentFile=/srv/alphatrend/.env
+ExecStart=/usr/bin/env npm run db:backup -- --output-dir=/srv/alphatrend/backups/postgres --label=scheduled

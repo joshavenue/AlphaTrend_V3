@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AlphaTrend V3 provider smoke daily before scans
+
+[Timer]
+OnCalendar=*-*-* 21:00:00 UTC
+Persistent=true
+Unit=alphatrend-provider-smoke.service
+
+[Install]
+WantedBy=timers.target

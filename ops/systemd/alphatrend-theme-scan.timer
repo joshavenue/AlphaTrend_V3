@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AlphaTrend V3 full theme scan daily after provider smoke
+
+[Timer]
+OnCalendar=*-*-* 23:30:00 UTC
+Persistent=true
+Unit=alphatrend-theme-scan.service
+
+[Install]
+WantedBy=timers.target

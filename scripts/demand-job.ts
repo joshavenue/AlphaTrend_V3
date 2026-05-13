@@ -4,30 +4,65 @@ import { pathToFileURL } from "node:url";
 import type { ProviderName } from "@/generated/prisma/client";
 import { createPrismaClient } from "@/lib/db/prisma";
 import {
-  fetchEconomicDemand,
-  scoreEconomicDemandThemes,
-} from "@/lib/demand/runner";
+  runDemandRefreshOrchestration,
+  type DemandRefreshOrchestrationOptions,
+} from "@/lib/ops/runner";
 
-function parseArgs(argv: string[]) {
-  const options: {
-    provider?: ProviderName;
-    themeRef?: string;
-  } = {};
+function parseBoolean(value: string) {
+  if (["off", "false", "0", "no"].includes(value.toLowerCase())) {
+    return false;
+  }
 
-  for (const arg of argv) {
+  if (["on", "true", "1", "yes"].includes(value.toLowerCase())) {
+    return true;
+  }
+
+  throw new Error(`Unsupported boolean value: ${value}`);
+}
+
+function readValue(argv: string[], index: number, arg: string) {
+  if (arg.includes("=")) {
+    return arg.split("=").slice(1).join("=");
+  }
+
+  const next = argv[index + 1];
+
+  if (!next || next.startsWith("--")) {
+    throw new Error(`Missing value for ${arg}`);
+  }
+
+  return next;
+}
+
+export function parseDemandJobArgs(argv: string[]) {
+  const options: DemandRefreshOrchestrationOptions = {};
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+
     if (arg === "--all") {
       options.themeRef = undefined;
-    } else if (arg.startsWith("--theme=")) {
-      options.themeRef = arg.split("=").slice(1).join("=");
-    } else if (arg.startsWith("--provider=")) {
-      options.provider = arg
-        .split("=")
-        .slice(1)
-        .join("=")
-        .toUpperCase() as ProviderName;
+    } else if (arg === "--theme" || arg.startsWith("--theme=")) {
+      options.themeRef = readValue(argv, index, arg);
+      if (!arg.includes("=")) {
+        index += 1;
+      }
+    } else if (arg === "--provider" || arg.startsWith("--provider=")) {
+      options.provider = readValue(
+        argv,
+        index,
+        arg,
+      ).toUpperCase() as ProviderName;
+      if (!arg.includes("=")) {
+        index += 1;
+      }
+    } else if (arg.startsWith("--snapshots=")) {
+      options.includeSnapshots = parseBoolean(arg.split("=")[1]);
+    } else if (arg.startsWith("--alerts=")) {
+      options.includeAlerts = parseBoolean(arg.split("=")[1]);
     } else {
       throw new Error(
-        `Unknown job:demand option "${arg}". Use --all, --theme=..., or --provider=...`,
+        `Unknown job:demand option "${arg}". Use --all, --theme=..., --provider=..., --snapshots=off, or --alerts=off.`,
       );
     }
   }
@@ -36,57 +71,31 @@ function parseArgs(argv: string[]) {
 }
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseDemandJobArgs(process.argv.slice(2));
   const prisma = createPrismaClient();
 
   await prisma.$connect();
 
   try {
-    const fetchResult = await fetchEconomicDemand(prisma, options);
-    const scoreResult = await scoreEconomicDemandThemes(prisma, {
-      themeRef: options.themeRef,
-    });
+    const result = await runDemandRefreshOrchestration(prisma, options);
 
     console.log(
       JSON.stringify(
         {
-          fetch: {
-            evidence_written: fetchResult.evidenceWritten,
-            feeds_fetched: fetchResult.feedsFetched,
-            job_run_id: fetchResult.jobRunId,
-            observations_written: fetchResult.observationsWritten,
-            provider_calls: fetchResult.providerCalls,
-            rows_read: fetchResult.rowsRead,
-            rows_written: fetchResult.rowsWritten,
-            warnings: fetchResult.warnings.length,
-          },
-          score: {
-            evidence_written: scoreResult.evidenceWritten,
-            job_run_id: scoreResult.jobRunId,
-            rows_read: scoreResult.rowsRead,
-            rows_written: scoreResult.rowsWritten,
-            themes: scoreResult.themes,
-            warnings: scoreResult.warnings.length,
-          },
+          job_run_id: result.jobRunId,
+          provider_calls: result.providerCalls,
+          rows_read: result.rowsRead,
+          rows_written: result.rowsWritten,
+          scope_id: result.scopeId,
+          stages: result.stages,
+          status: result.status,
         },
         null,
         2,
       ),
     );
 
-    const warnings = [...fetchResult.warnings, ...scoreResult.warnings];
-
-    if (warnings.length > 0) {
-      console.table(
-        warnings.slice(0, 50).map((warning) => ({
-          code: warning.code,
-          feed: warning.feedId ?? "",
-          message: warning.message,
-          severity: warning.severity,
-          theme: warning.themeCode ?? "",
-        })),
-      );
-    }
+    process.exitCode = result.status === "FAILED" ? 1 : 0;
   } finally {
     await prisma.$disconnect();
   }

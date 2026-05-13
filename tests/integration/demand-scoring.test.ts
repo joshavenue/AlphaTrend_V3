@@ -46,7 +46,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
               summary:
                 "Demand driver maps to constrained power infrastructure, pricing power, and public beneficiaries with measurable provider-backed evidence.",
             },
-            excludedCategories: [],
+            excludedCategories: [
+              {
+                normalized_label: "unrelated software",
+              },
+            ],
             indirectBeneficiaryCategories: [],
             invalidationRules: [
               {

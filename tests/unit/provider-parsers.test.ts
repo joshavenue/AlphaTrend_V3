@@ -5,6 +5,7 @@ import {
   parseAlphaVantageListingCsv,
   parseBeaDatasets,
   parseBlsObservations,
+  parseEiaDataPoints,
   parseEiaRoutes,
   parseFmpProfile,
   parseFmpRows,
@@ -316,6 +317,33 @@ describe("provider parsers", () => {
     ).toEqual([
       expect.objectContaining({
         id: "electricity",
+      }),
+    ]);
+    expect(
+      parseEiaDataPoints(
+        {
+          response: {
+            data: [
+              {
+                period: "2026-02",
+                sales: "125.4",
+                "sales-units": "million kWh",
+                sectorid: "ALL",
+                stateid: "US",
+              },
+            ],
+          },
+        },
+        "sales",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        metricName: "sales",
+        period: "2026-02",
+        region: "US",
+        sector: "ALL",
+        unit: "million kWh",
+        value: 125.4,
       }),
     ]);
   });

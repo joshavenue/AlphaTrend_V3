@@ -300,6 +300,7 @@ async function loadEvidenceRows(
       freshnessScore: true,
       jobRunId: true,
       metricName: true,
+      metricValueNum: true,
       metricValueText: true,
       reasonCode: true,
       themeId: true,
@@ -320,6 +321,8 @@ function evidenceInput(
     fetchedAt: row.fetchedAt,
     freshnessScore: decimalNumber(row.freshnessScore),
     metricName: row.metricName,
+    metricValueNum: decimalNumber(row.metricValueNum),
+    metricValueText: row.metricValueText,
     reasonCode: row.reasonCode,
   } satisfies SnapshotEvidenceInput;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { T2_DEMAND_DETAIL_METRIC } from "@/lib/demand/constants";
 import { computeThemeSnapshot } from "@/lib/snapshots/scoring";
 import type {
   SnapshotCandidateInput,
@@ -129,6 +130,49 @@ describe("Phase 11 theme snapshot scoring", () => {
     expect(result.themeReality.final_score).toBeGreaterThanOrEqual(60);
     expect(result.highlightReasonCodes).toContain(
       "DEMAND_MULTIPLE_BENEFICIARIES_VALIDATE",
+    );
+  });
+
+  it("uses stored expanded T2 demand proof when computing theme reality", () => {
+    const result = computeThemeSnapshot({
+      candidates: [candidate("AAA"), candidate("BBB")],
+      evidenceRows: [
+        ...evidence(3),
+        {
+          evidenceGrade: "A",
+          fetchedAt: new Date("2026-05-12T00:00:00.000Z"),
+          freshnessScore: 95,
+          metricName: T2_DEMAND_DETAIL_METRIC,
+          metricValueNum: 82,
+          metricValueText: JSON.stringify({
+            algorithm_version: "t2_fixture",
+            caps_applied: [],
+            caution_reason_codes: [],
+            components: {
+              contract_backlog_proof: 30,
+              customer_demand_proof: 12,
+              data_freshness_adjustment: 0,
+              industry_macro_confirmation: 15,
+              pricing_capacity_proof: 20,
+              provider_coverage: 8,
+              weak_evidence_adjustment: 0,
+            },
+            demand_state: "DEMAND_CONFIRMED",
+            evidence_ids: ["t2-fixture"],
+            final_score: 82,
+            positive_reason_codes: ["DEMAND_GOVERNMENT_AWARD_SUPPORT"],
+            threshold_version: "test",
+          }),
+          reasonCode: "DEMAND_GOVERNMENT_AWARD_SUPPORT",
+        },
+      ],
+      theme: theme(),
+    });
+
+    expect(result.themeReality.components.provider_demand_proof).toBe(25);
+    expect(result.themeReality.components.demand_provider_coverage).toBe(8);
+    expect(result.highlightReasonCodes).toContain(
+      "DEMAND_GOVERNMENT_AWARD_SUPPORT",
     );
   });
 

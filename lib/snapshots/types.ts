@@ -62,6 +62,8 @@ export type SnapshotEvidenceInput = {
   fetchedAt?: Date;
   freshnessScore?: number;
   metricName: string;
+  metricValueNum?: number | null;
+  metricValueText?: string | null;
   reasonCode?: string | null;
 };
 
@@ -100,6 +102,8 @@ export type ThemeRealityScoreDetail = {
     direct_beneficiary_validation: number;
     evidence_freshness_quality: number;
     mechanism_specificity: number;
+    demand_provider_coverage?: number;
+    provider_demand_proof?: number;
     required_proof_coverage: number;
     theme_basket_participation: number;
   };

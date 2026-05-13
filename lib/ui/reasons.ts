@@ -178,6 +178,31 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Theme-level demand proof has not refreshed recently enough.",
     "CAUTION",
   ),
+  DEMAND_CAPACITY_TIGHTNESS_EVIDENCE: meta(
+    "Capacity evidence",
+    "Provider data supports capacity tightness or demand pressure for the theme.",
+    "POSITIVE",
+  ),
+  DEMAND_GOVERNMENT_AWARD_SUPPORT: meta(
+    "Government award support",
+    "Federal award evidence supports theme-level government demand.",
+    "POSITIVE",
+  ),
+  DEMAND_MACRO_CONTEXT_SUPPORT: meta(
+    "Macro context support",
+    "Macro or industry data supports the theme's demand backdrop.",
+    "INFO",
+  ),
+  DEMAND_MEASURABLE_BACKLOG: meta(
+    "Measurable backlog",
+    "Provider or filing evidence shows backlog or contracted demand.",
+    "POSITIVE",
+  ),
+  DEMAND_MEASURABLE_ORDER_GROWTH: meta(
+    "Order growth",
+    "Provider or filing evidence shows order growth tied to the theme.",
+    "POSITIVE",
+  ),
   DEMAND_MECHANISM_SPECIFIC: meta(
     "Mechanism specific",
     "The theme has a testable economic mechanism instead of generic buzzwords.",
@@ -198,6 +223,16 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Current demand proof is too weak to support high confidence.",
     "WARNING",
   ),
+  DEMAND_ONLY_BUZZWORDS: meta(
+    "Only buzzwords",
+    "Demand support is only promotional or vague language.",
+    "WARNING",
+  ),
+  DEMAND_PRICING_POWER_EVIDENCE: meta(
+    "Pricing power evidence",
+    "Provider or filing evidence supports theme-linked pricing power.",
+    "POSITIVE",
+  ),
   DEMAND_PROOF_MISSING: meta(
     "Demand proof missing",
     "Theme-level economic proof is missing or not yet loaded.",
@@ -212,6 +247,16 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Required proof present",
     "The required theme proof fields are present in the theme definition.",
     "POSITIVE",
+  ),
+  DEMAND_UNMAPPED_RECIPIENT: meta(
+    "Unmapped recipient",
+    "Government award evidence remains theme-level because the recipient is not safely mapped to a ticker.",
+    "CAUTION",
+  ),
+  DEMAND_CONTRADICTED: meta(
+    "Demand contradicted",
+    "Required economic demand proof is contradicted by current evidence.",
+    "BLOCKER",
   ),
   DILUTION_LOW_RISK: meta(
     "Low dilution risk",

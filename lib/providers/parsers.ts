@@ -154,6 +154,15 @@ export type EiaRoute = {
   description?: string;
 };
 
+export type EiaDataPoint = {
+  metricName: string;
+  period: string;
+  region?: string;
+  sector?: string;
+  unit?: string;
+  value: number | null;
+};
+
 export type UsaSpendingAward = {
   awardId?: string;
   recipientName?: string;
@@ -761,6 +770,48 @@ export function parseEiaRoutes(payload: unknown): EiaRoute[] {
         description: asString(row.description),
         id,
         name,
+      },
+    ];
+  });
+}
+
+export function parseEiaDataPoints(
+  payload: unknown,
+  metricName = "sales",
+): EiaDataPoint[] {
+  const response = asRecord(payload).response
+    ? asRecord(asRecord(payload).response)
+    : asRecord(payload);
+
+  return asArray(response.data).flatMap((value) => {
+    const row = asRecord(value);
+    const period = asString(row.period);
+
+    if (!period) {
+      return [];
+    }
+
+    return [
+      {
+        metricName,
+        period,
+        region:
+          asString(row.stateid) ??
+          asString(row.region) ??
+          asString(row["state-name"]),
+        sector:
+          asString(row.sectorid) ??
+          asString(row.sectorName) ??
+          asString(row["sector-name"]),
+        unit:
+          asString(row[`${metricName}-units`]) ??
+          asString(row.units) ??
+          asString(row.unit),
+        value:
+          asNumber(row[metricName]) ??
+          asNumber(row.value) ??
+          asNumber(row["sales"]) ??
+          null,
       },
     ];
   });

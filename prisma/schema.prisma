@@ -203,6 +203,8 @@ enum JobType {
   THEME_SCAN
   THEME_SNAPSHOT
   ALERT_GENERATION
+  ECONOMIC_DEMAND_FETCH
+  ECONOMIC_DEMAND_SCORE
   BACKFILL
 }
 
@@ -297,9 +299,11 @@ model Security {
   alerts         Alert[]
   candidates     ThemeCandidate[]
   evidence       EvidenceLedger[]
+  governmentAwards GovernmentAward[]
   identifiers    SecurityIdentifier[]
   priceBars      PriceBarDaily[]
   priceMetrics   PriceMetricDaily[]
+  recipientMappings RecipientSecurityMapping[]
   signalStates   SignalState[]
   watchlistItems WatchlistItem[]
 
@@ -352,9 +356,11 @@ model ProviderPayload {
   redactionStatus    PayloadRedactionStatus @default(REDACTED) @map("redaction_status")
   createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  apiCalls  ApiObservability[]
-  evidence  EvidenceLedger[]
-  priceBars PriceBarDaily[]
+  apiCalls             ApiObservability[]
+  economicObservations EconomicObservation[]
+  evidence             EvidenceLedger[]
+  governmentAwards     GovernmentAward[]
+  priceBars            PriceBarDaily[]
 
   @@unique([provider, endpoint, requestHash, responseHash], map: "provider_payloads_provider_endpoint_hashes_key")
   @@index([provider, endpoint, responseHash], map: "provider_payloads_provider_endpoint_response_hash_idx")
@@ -446,6 +452,140 @@ model ThemeBasketPrice {
   @@map("theme_basket_prices")
 }
 
+model EconomicSeries {
+  economicSeriesId       String        @id @default(uuid()) @map("economic_series_id") @db.Uuid
+  provider               ProviderName
+  endpoint               String
+  seriesId               String        @map("series_id")
+  title                  String?
+  description            String?
+  frequency              String?
+  unit                   String?
+  evidenceGradeCeiling   EvidenceGrade @default(B) @map("evidence_grade_ceiling")
+  freshnessThresholdDays Int           @default(90) @map("freshness_threshold_days")
+  sourcePayloadHash      String?       @map("source_payload_hash")
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  mappings     ThemeEconomicMapping[]
+  observations EconomicObservation[]
+
+  @@unique([provider, endpoint, seriesId], map: "economic_series_provider_endpoint_series_key")
+  @@index([provider, endpoint], map: "economic_series_provider_endpoint_idx")
+  @@index([seriesId], map: "economic_series_series_id_idx")
+  @@map("economic_series")
+}
+
+model EconomicObservation {
+  economicObservationId String       @id @default(uuid()) @map("economic_observation_id") @db.Uuid
+  economicSeriesId      String       @map("economic_series_id") @db.Uuid
+  provider              ProviderName
+  observationDate       DateTime     @map("observation_date") @db.Date
+  periodLabel           String?      @map("period_label")
+  metricName            String       @map("metric_name")
+  metricValue           Decimal?     @map("metric_value") @db.Decimal(28, 8)
+  metricUnit            String?      @map("metric_unit")
+  payloadId             String?      @map("payload_id") @db.Uuid
+  sourcePayloadHash     String?      @map("source_payload_hash")
+  fetchedAt             DateTime     @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  economicSeries EconomicSeries  @relation(fields: [economicSeriesId], references: [economicSeriesId], onDelete: Restrict)
+  payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+
+  @@unique([economicSeriesId, observationDate, metricName], map: "economic_observations_series_date_metric_key")
+  @@index([provider, fetchedAt], map: "economic_observations_provider_fetched_at_idx")
+  @@index([observationDate], map: "economic_observations_observation_date_idx")
+  @@index([payloadId], map: "economic_observations_payload_id_idx")
+  @@map("economic_observations")
+}
+
+model ThemeEconomicMapping {
+  themeEconomicMappingId String        @id @default(uuid()) @map("theme_economic_mapping_id") @db.Uuid
+  themeId                String        @map("theme_id") @db.Uuid
+  economicSeriesId       String?       @map("economic_series_id") @db.Uuid
+  feedId                 String        @map("feed_id")
+  provider               ProviderName
+  endpoint               String
+  seriesOrQueryId        String        @map("series_or_query_id")
+  description            String
+  proofCategory          String        @map("proof_category")
+  evidenceGradeCeiling   EvidenceGrade @default(B) @map("evidence_grade_ceiling")
+  frequency              String?
+  freshnessThresholdDays Int           @default(90) @map("freshness_threshold_days")
+  mapsToTheme            Boolean       @default(true) @map("maps_to_theme")
+  mapsToSecurity         Boolean       @default(false) @map("maps_to_security")
+  mappingMethod          String        @map("mapping_method")
+  enabled                Boolean       @default(true)
+  createdAt              DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  economicSeries EconomicSeries? @relation(fields: [economicSeriesId], references: [economicSeriesId], onDelete: SetNull)
+  theme          ThemeDefinition @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+
+  @@unique([themeId, feedId], map: "theme_economic_mappings_theme_feed_key")
+  @@index([provider, enabled], map: "theme_economic_mappings_provider_enabled_idx")
+  @@index([economicSeriesId], map: "theme_economic_mappings_series_id_idx")
+  @@map("theme_economic_mappings")
+}
+
+model GovernmentAward {
+  governmentAwardId  String                @id @default(uuid()) @map("government_award_id") @db.Uuid
+  themeId            String?               @map("theme_id") @db.Uuid
+  mappedSecurityId   String?               @map("mapped_security_id") @db.Uuid
+  provider           ProviderName          @default(USA_SPENDING)
+  awardId            String?               @map("award_id")
+  recipientName      String?               @map("recipient_name")
+  recipientUei       String?               @map("recipient_uei")
+  recipientDuns      String?               @map("recipient_duns")
+  awardAmount        Decimal?              @map("award_amount") @db.Decimal(28, 4)
+  awardingAgency     String?               @map("awarding_agency")
+  fundingAgency      String?               @map("funding_agency")
+  awardType          String?               @map("award_type")
+  startDate          DateTime?             @map("start_date") @db.Date
+  endDate            DateTime?             @map("end_date") @db.Date
+  description        String?
+  mappingConfidence  IdentifierConfidence? @map("mapping_confidence")
+  mappingMethod      String?               @map("mapping_method")
+  payloadId          String?               @map("payload_id") @db.Uuid
+  sourcePayloadHash  String?               @map("source_payload_hash")
+  fetchedAt          DateTime              @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  mappedSecurity Security?        @relation(fields: [mappedSecurityId], references: [securityId], onDelete: SetNull)
+  payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+  theme          ThemeDefinition? @relation(fields: [themeId], references: [themeId], onDelete: SetNull)
+
+  @@unique([provider, awardId], map: "government_awards_provider_award_key")
+  @@index([themeId, fetchedAt], map: "government_awards_theme_fetched_at_idx")
+  @@index([mappedSecurityId], map: "government_awards_mapped_security_idx")
+  @@index([recipientName], map: "government_awards_recipient_name_idx")
+  @@index([payloadId], map: "government_awards_payload_id_idx")
+  @@map("government_awards")
+}
+
+model RecipientSecurityMapping {
+  recipientSecurityMappingId String               @id @default(uuid()) @map("recipient_security_mapping_id") @db.Uuid
+  provider                   ProviderName         @default(USA_SPENDING)
+  recipientName              String               @map("recipient_name")
+  recipientIdentifier        String?              @map("recipient_identifier")
+  securityId                 String?              @map("security_id") @db.Uuid
+  confidence                 IdentifierConfidence @default(REVIEW_REQUIRED)
+  mappingMethod              String               @default("unmapped") @map("mapping_method")
+  reviewStatus               String               @default("REVIEW_REQUIRED") @map("review_status")
+  notes                      String?
+  sourceDetail               Json?                @map("source_detail")
+  createdAt                  DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  security Security? @relation(fields: [securityId], references: [securityId], onDelete: SetNull)
+
+  @@unique([provider, recipientName, securityId], map: "recipient_security_mappings_provider_name_security_key")
+  @@index([recipientName], map: "recipient_security_mappings_recipient_name_idx")
+  @@index([securityId], map: "recipient_security_mappings_security_id_idx")
+  @@map("recipient_security_mappings")
+}
+
 model JobRun {
   jobRunId      String    @id @default(uuid()) @map("job_run_id") @db.Uuid
   jobType       JobType   @map("job_type")
@@ -530,7 +670,9 @@ model ThemeDefinition {
   alerts         Alert[]
   basketPrices   ThemeBasketPrice[]
   candidates     ThemeCandidate[]
+  economicMappings ThemeEconomicMapping[]
   evidence       EvidenceLedger[]
+  governmentAwards GovernmentAward[]
   signalStates   SignalState[]
   snapshots      ThemeSnapshot[]
   watchlistItems WatchlistItem[]

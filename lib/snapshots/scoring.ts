@@ -1,4 +1,6 @@
 import type { DashboardState, FinalState } from "@/generated/prisma/client";
+import { T2_DEMAND_DETAIL_METRIC } from "@/lib/demand/constants";
+import type { DemandScoreDetail } from "@/lib/demand/types";
 import {
   SNAPSHOT_REASON_CODES,
   T11_SNAPSHOT_ALGORITHM_VERSION,
@@ -205,6 +207,39 @@ function measurableEvidenceRows(evidenceRows: SnapshotEvidenceInput[]) {
   );
 }
 
+function demandDetail(source: unknown) {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+
+  const detail = source as Partial<DemandScoreDetail>;
+
+  return typeof detail.final_score === "number" &&
+    typeof detail.demand_state === "string"
+    ? (detail as DemandScoreDetail)
+    : undefined;
+}
+
+function latestExpandedDemandDetail(evidenceRows: SnapshotEvidenceInput[]) {
+  for (const row of evidenceRows) {
+    if (row.metricName !== T2_DEMAND_DETAIL_METRIC || !row.metricValueText) {
+      continue;
+    }
+
+    try {
+      const detail = demandDetail(JSON.parse(row.metricValueText));
+
+      if (detail) {
+        return detail;
+      }
+    } catch {
+      // Ignore malformed historical demand details; minimal T2 still applies.
+    }
+  }
+
+  return undefined;
+}
+
 function requiredProofCoverage(evidenceRows: SnapshotEvidenceInput[]) {
   const measurableRows = measurableEvidenceRows(evidenceRows);
   const metricCount = new Set(measurableRows.map((row) => row.metricName)).size;
@@ -339,7 +374,10 @@ function calculateThemeRealityScore(input: {
   evidenceRows: SnapshotEvidenceInput[];
   theme: SnapshotThemeInput;
 }): ThemeRealityScoreDetail {
-  const mechanism = mechanismSpecificity(input.theme);
+  const expandedT2 = latestExpandedDemandDetail(input.evidenceRows);
+  const mechanism = expandedT2
+    ? Math.round(mechanismSpecificity(input.theme) / 2)
+    : mechanismSpecificity(input.theme);
   const proof = requiredProofCoverage(input.evidenceRows);
   const breadth = companyLevelEvidenceBreadth(input.candidates);
   const directValidation = directBeneficiaryValidation(input.candidates);
@@ -375,6 +413,12 @@ function calculateThemeRealityScore(input: {
     positiveReasonCodes.push(SNAPSHOT_REASON_CODES.PRICE_RS_VS_THEME_POSITIVE);
   }
 
+  if (expandedT2) {
+    positiveReasonCodes.push(...expandedT2.positive_reason_codes);
+    cautionReasonCodes.push(...expandedT2.caution_reason_codes);
+    capsApplied.push(...expandedT2.caps_applied);
+  }
+
   if (measurableRows.length === 0) {
     cautionReasonCodes.push(SNAPSHOT_REASON_CODES.DEMAND_PROOF_MISSING);
     capsApplied.push("NO_MEASURABLE_PROOF_CAP_40");
@@ -392,17 +436,37 @@ function calculateThemeRealityScore(input: {
     cautionReasonCodes.push(SNAPSHOT_REASON_CODES.DEMAND_EVIDENCE_STALE);
   }
 
-  let score =
-    mechanism + proof + breadth + directValidation + basket + freshness;
+  const providerDemandProof = expandedT2
+    ? Math.round(Math.min(expandedT2.final_score, 100) * 0.3)
+    : 0;
+  const demandProviderCoverage = expandedT2
+    ? expandedT2.components.provider_coverage
+    : undefined;
 
-  if (measurableRows.length === 0) {
+  let score = expandedT2
+    ? mechanism +
+      providerDemandProof +
+      Math.min(breadth, 15) +
+      directValidation +
+      basket +
+      freshness +
+      (demandProviderCoverage ?? 0) +
+      Math.round(expandedT2.components.weak_evidence_adjustment / 2) +
+      Math.round(expandedT2.components.data_freshness_adjustment / 2)
+    : mechanism + proof + breadth + directValidation + basket + freshness;
+
+  if (!expandedT2 && measurableRows.length === 0) {
     score = Math.min(score, 40);
   }
 
-  if (highestGrade === "D") {
+  if (!expandedT2 && highestGrade === "D") {
     score = Math.min(score, 35);
-  } else if (highestGrade === "C") {
+  } else if (!expandedT2 && highestGrade === "C") {
     score = Math.min(score, 55);
+  }
+
+  if (expandedT2?.demand_state === "DEMAND_CONTRADICTED") {
+    score = Math.min(score, 30);
   }
 
   return {
@@ -411,8 +475,10 @@ function calculateThemeRealityScore(input: {
     components: {
       company_level_evidence_breadth: breadth,
       direct_beneficiary_validation: directValidation,
+      demand_provider_coverage: demandProviderCoverage,
       evidence_freshness_quality: freshness,
       mechanism_specificity: mechanism,
+      provider_demand_proof: expandedT2 ? providerDemandProof : undefined,
       required_proof_coverage: proof,
       theme_basket_participation: basket,
     },

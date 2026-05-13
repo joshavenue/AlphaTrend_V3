@@ -9,6 +9,7 @@ import {
   parseAlphaVantageListingCsv,
   parseBeaDatasets,
   parseBlsObservations,
+  parseEiaDataPoints,
   parseEiaRoutes,
   parseFmpCompanyScreener,
   parseFmpEtfHoldings,
@@ -27,6 +28,7 @@ import {
   type AlphaVantageListing,
   type BeaDataset,
   type BlsObservation,
+  type EiaDataPoint,
   type EiaRoute,
   type FmpCompanyScreenerRow,
   type FmpEtfHolding,
@@ -956,6 +958,47 @@ export async function fetchEiaRoutes(
       api_key: env.EIA_API_KEY,
     }),
     validate: requireRows<EiaRoute[]>("EIA routes"),
+  });
+}
+
+export async function fetchEiaElectricityRetailSales(
+  context: ProviderCallContext,
+): Promise<ProviderResult<EiaDataPoint[]>> {
+  const env = getEnv();
+  const endpoint = "electricity_retail_sales";
+  const unconfigured = requireEnv<EiaDataPoint[]>(
+    context,
+    "EIA",
+    endpoint,
+    "EIA_API_KEY",
+    env.EIA_API_KEY,
+  );
+
+  if (unconfigured) {
+    return unconfigured;
+  }
+
+  return providerFetch({
+    endpoint,
+    entityId: "electricity/retail-sales:sales",
+    entityType: "series",
+    jobRunId: context.jobRunId,
+    parse: (payload) => parseEiaDataPoints(payload, "sales"),
+    prisma: context.prisma,
+    provider: "EIA",
+    retryCount: context.retryCount,
+    rowCount: (rows) => rows.length,
+    timeoutMs: context.timeoutMs,
+    url: withQuery("https://api.eia.gov/v2/electricity/retail-sales/data/", {
+      api_key: env.EIA_API_KEY,
+      "data[0]": "sales",
+      frequency: "monthly",
+      length: "12",
+      offset: "0",
+      "sort[0][column]": "period",
+      "sort[0][direction]": "desc",
+    }),
+    validate: requireRows<EiaDataPoint[]>("EIA electricity retail sales"),
   });
 }
 

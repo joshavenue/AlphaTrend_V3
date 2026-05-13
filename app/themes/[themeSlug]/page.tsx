@@ -159,12 +159,12 @@ export default async function ThemeDetailPage({ params }: ThemePageProps) {
               />
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
             <StateBadge state={latest?.dashboard_state} />
             <span className="font-mono text-sm">
               Priority {formatNumber(latest?.theme_review_priority_score, 1)}
             </span>
-            <span className="font-mono text-xs text-muted">
+            <span className="min-w-0 break-words font-mono text-xs text-muted">
               Last scan {compactDateTime(latest?.last_scanned_at)}
             </span>
           </div>
@@ -177,10 +177,10 @@ export default async function ThemeDetailPage({ params }: ThemePageProps) {
           </div>
         </section>
 
-        <section className="grid gap-3">
+        <section className="grid min-w-0 gap-3">
           {groupEntries(candidates.groups).map(([group, rows]) => (
             <details
-              className="border border-border bg-panel"
+              className="min-w-0 border border-border bg-panel"
               key={group}
               open={DEFAULT_OPEN.has(group)}
             >
@@ -190,7 +190,7 @@ export default async function ThemeDetailPage({ params }: ThemePageProps) {
                   ({rows.length})
                 </span>
               </summary>
-              <div className="overflow-x-auto">
+              <div className="min-w-0 overflow-x-auto">
                 <table className="w-full min-w-[980px] border-collapse text-sm">
                   <thead className="font-mono text-[10px] uppercase text-muted">
                     <tr className="border-b border-border-subtle">

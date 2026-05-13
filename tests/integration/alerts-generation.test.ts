@@ -220,6 +220,22 @@ describe.skipIf(!process.env.DATABASE_URL)(
         expect(page.rows.length).toBeGreaterThanOrEqual(2);
         expect(page.rows[0]?.reason_metadata?.[0]?.display_label).toBeTruthy();
 
+        const missingThemePage = await buildAlertsPage({
+          limit: 10,
+          themeId: `${themeCode}_MISSING`,
+        });
+        expect(missingThemePage.rows).toEqual([]);
+        expect(missingThemePage.pagination).toMatchObject({
+          hasMore: false,
+          nextCursor: null,
+        });
+
+        const missingSecurityPage = await buildAlertsPage({
+          limit: 10,
+          securityId: `${ticker}_MISSING`,
+        });
+        expect(missingSecurityPage.rows).toEqual([]);
+
         const newestAlertId = page.rows[0]?.alert_id;
         expect(newestAlertId).toBeDefined();
 
@@ -234,6 +250,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         await expect(dismissAlert(newestAlertId)).resolves.toBe(true);
         const dismissedDetail = await buildAlertDetail(newestAlertId);
         expect(dismissedDetail?.dismissed_at).toBeTruthy();
+        await expect(markAlertRead(newestAlertId)).resolves.toBe(true);
 
         const repeat = await evaluateAlerts(prisma, {
           themeRef: themeCode,

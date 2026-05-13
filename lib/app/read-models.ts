@@ -271,6 +271,17 @@ type ReadPage<T> = {
   rows: T[];
 };
 
+function emptyPage<T = never>(limit: number): ReadPage<T> {
+  return {
+    pagination: {
+      hasMore: false,
+      limit,
+      nextCursor: null,
+    },
+    rows: [],
+  };
+}
+
 export async function searchSecurities(query: string, limit = 8) {
   const q = query.trim();
 
@@ -578,6 +589,11 @@ export async function buildAlertsPage(input: {
         where: securityWhere(input.securityId),
       })
     : null;
+
+  if ((input.themeId && !theme) || (input.securityId && !security)) {
+    return emptyPage(limit);
+  }
+
   const rows = await prisma.alert.findMany({
     include: {
       security: {
@@ -773,7 +789,6 @@ export async function markAlertRead(alertId: string) {
     },
     where: {
       alertId,
-      dismissedAt: null,
     },
   });
 

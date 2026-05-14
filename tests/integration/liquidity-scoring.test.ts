@@ -23,6 +23,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const suffix = randomUUID().slice(0, 8).toUpperCase();
       const themeCode = `P9${suffix}`;
       const ticker = `P9X${suffix}`.slice(0, 10);
+      const currentMetricDate = new Date();
       let themeId: string | undefined;
       let securityId: string | undefined;
       let candidateId: string | undefined;
@@ -147,9 +148,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
             algorithmVersion: "test",
             averageDollarVolume20d: 40_000_000,
             averageVolume20d: 2_000_000,
-            computedAt: new Date("2026-05-12T00:00:00.000Z"),
+            computedAt: currentMetricDate,
             latestClose: 20,
-            metricDate: new Date("2026-05-11T00:00:00.000Z"),
+            metricDate: currentMetricDate,
             securityId,
           },
         });

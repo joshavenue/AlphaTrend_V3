@@ -67,6 +67,7 @@
     "alerts:list": "tsx scripts/alerts-list.ts",
     "job:alerts": "tsx scripts/alerts-evaluate.ts --all",
     "ops:provider-smoke-gate": "tsx scripts/provider-smoke-gate.ts",
+    "ops:runtime-authority": "tsx scripts/runtime-authority.ts",
     "smoke:ui": "tsx scripts/phase15-ui-smoke.ts",
     "verify:docs": "tsx scripts/verify-docs.ts"
   },

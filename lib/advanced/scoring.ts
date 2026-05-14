@@ -123,10 +123,23 @@ export function scoreOwnershipFlow(
   input: OwnershipFlowSnapshotInput,
 ): OwnershipFlowScoreResult {
   const reasonCodes = new Set<string>();
+  const hasOwnershipContext = Boolean(
+    input.hasOwnershipSource ||
+    input.holderCount !== undefined ||
+    input.ownershipPercent !== undefined ||
+    input.ownershipTrend !== undefined ||
+    input.reportDate !== undefined,
+  );
+  const hasEtfFlowContext = Boolean(
+    input.hasEtfFlowSource ||
+    input.etfFlowEligible !== undefined ||
+    input.etfWeight !== undefined,
+  );
+  const hasUsableContext = hasOwnershipContext || hasEtfFlowContext;
   const holderCount = input.holderCount ?? 0;
   const ownershipPercent = input.ownershipPercent ?? 0;
   const etfWeight = input.etfWeight ?? 0;
-  const delayedData = input.delayedData ?? true;
+  const delayedData = input.delayedData ?? hasOwnershipContext;
 
   let holderBreadth = 0;
   if (holderCount >= 50) {
@@ -159,7 +172,7 @@ export function scoreOwnershipFlow(
     reasonCodes.add(T5_REASON_CODES.FLOW_CROWDED);
   }
 
-  if (delayedData) {
+  if (hasOwnershipContext && delayedData) {
     reasonCodes.add(T5_REASON_CODES.FLOW_13F_DELAYED_DATA);
   }
 
@@ -167,19 +180,35 @@ export function scoreOwnershipFlow(
     reasonCodes.add(T5_REASON_CODES.FLOW_LICENSE_REQUIRED);
   }
 
-  if (holderBreadth >= 35 && ownershipTrend > 0) {
+  if (
+    !input.licenseRestricted &&
+    hasUsableContext &&
+    holderBreadth >= 35 &&
+    ownershipTrend > 0
+  ) {
     reasonCodes.add(T5_REASON_CODES.FLOW_INSTITUTIONAL_ACCUMULATION);
-  } else if (holderBreadth >= 15) {
+  } else if (
+    !input.licenseRestricted &&
+    hasUsableContext &&
+    holderBreadth >= 15
+  ) {
     reasonCodes.add(T5_REASON_CODES.FLOW_OWNERSHIP_BROADENING);
   }
 
   const rawScore =
-    holderBreadth + ownershipTrend + etfFlowAccess + crowdingPenalty;
+    hasUsableContext && !input.licenseRestricted
+      ? holderBreadth + ownershipTrend + etfFlowAccess + crowdingPenalty
+      : 0;
   const score = clamp(rawScore);
 
   let flowState: OwnershipFlowScoreResult["flowState"] = "INSUFFICIENT_DATA";
 
-  if (reasonCodes.has(T5_REASON_CODES.FLOW_DISTRIBUTION_WARNING)) {
+  if (input.licenseRestricted) {
+    flowState = "INSUFFICIENT_DATA";
+  } else if (!hasUsableContext) {
+    flowState = "INSUFFICIENT_DATA";
+    reasonCodes.add(T5_REASON_CODES.DATA_MISSING);
+  } else if (reasonCodes.has(T5_REASON_CODES.FLOW_DISTRIBUTION_WARNING)) {
     flowState = "DISTRIBUTION_OR_TRIMMING";
   } else if (reasonCodes.has(T5_REASON_CODES.FLOW_CROWDED)) {
     flowState = "CROWDED_OWNERSHIP";
@@ -189,11 +218,9 @@ export function scoreOwnershipFlow(
     flowState = "BROADENING_OWNERSHIP";
   } else if (reasonCodes.has(T5_REASON_CODES.FLOW_ETF_ELIGIBLE)) {
     flowState = "ETF_FLOW_ELIGIBLE";
-  } else if (!input.licenseRestricted) {
+  } else {
     flowState = "NO_MEANINGFUL_FLOW_ACCESS";
     reasonCodes.add(T5_REASON_CODES.FLOW_NO_MEANINGFUL_ACCESS);
-  } else {
-    reasonCodes.add(T5_REASON_CODES.DATA_MISSING);
   }
 
   const orderedReasonCodes = [...reasonCodes];
@@ -214,6 +241,8 @@ export function scoreOwnershipFlow(
       final_score: score,
       metrics: {
         etf_weight: input.etfWeight,
+        has_etf_flow_source: hasEtfFlowContext,
+        has_ownership_source: hasOwnershipContext,
         holder_count: input.holderCount,
         ownership_percent: input.ownershipPercent,
         ownership_trend: input.ownershipTrend,

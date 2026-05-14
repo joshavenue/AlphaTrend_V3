@@ -31,7 +31,7 @@ export const T7_REASON_CODES = {
 
 export const BASE_RATE_THRESHOLDS = {
   lowSampleMinimum: 30,
-  minimumBarsForContext: 260,
+  minimumBarsForContext: 1260,
   supportiveMedianReturn3m: 0.08,
   supportiveWinRate3m: 0.6,
   unfavorableMedianReturn3m: 0,

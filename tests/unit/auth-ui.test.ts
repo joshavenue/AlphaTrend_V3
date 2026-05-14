@@ -121,8 +121,8 @@ describe("Phase 12 auth and UI contract", () => {
       "utf8",
     );
 
-    expect(source).toContain("T5 Ownership Flow and T7 Base Rate");
+    expect(source).toContain("T5 Ownership Flow and T7 Base-Rate Context");
     expect(source).toContain("context layers");
-    expect(source).toContain("not upgrade the final decision");
+    expect(source).toContain("non-upgrading");
   });
 });

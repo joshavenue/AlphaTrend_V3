@@ -115,27 +115,27 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
   ),
   BASE_RATE_LOW_SAMPLE_WARNING: meta(
     "Base-rate sample small",
-    "Historical analog context exists but the comparable sample is below the minimum threshold.",
+    "Same-ticker historical context is below the five-year minimum for directional labels.",
     "CAUTION",
   ),
   BASE_RATE_MIXED: meta(
-    "Base rate mixed",
-    "Historical analog outcomes are mixed and should be treated as context only.",
+    "Base-rate context mixed",
+    "Same-ticker historical setup outcomes are mixed and should be treated as context only.",
     "INFO",
   ),
   BASE_RATE_SUPPORTIVE: meta(
-    "Base rate supportive",
-    "Historical analog outcomes are supportive, but they do not override the core gates.",
+    "Supportive context",
+    "Same-ticker historical setup outcomes are supportive, but they do not override the core gates.",
     "INFO",
   ),
   BASE_RATE_SURVIVORSHIP_WARNING: meta(
     "Survivorship warning",
-    "Historical context may be biased because delisted or incomplete history can be missing.",
+    "Historical context may be biased because cross-universe and delisted history are not yet included.",
     "CAUTION",
   ),
   BASE_RATE_UNFAVORABLE: meta(
-    "Base rate unfavorable",
-    "Historical analog outcomes are unfavorable for this setup.",
+    "Unfavorable context",
+    "Same-ticker historical setup outcomes are unfavorable for this setup.",
     "CAUTION",
   ),
   DECISION_BASKET_PREFERRED: meta(

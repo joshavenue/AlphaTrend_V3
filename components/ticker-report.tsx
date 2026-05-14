@@ -12,7 +12,7 @@ const STACK = [
   ["T4 Price / Valuation", "T4_PRICE_VALUATION_PARTICIPATION"],
   ["T5 Ownership / Flow", "T5_OWNERSHIP_FLOW"],
   ["T6 Liquidity / Dilution", "T6_LIQUIDITY_DILUTION_FRAGILITY"],
-  ["T7 Base Rate", "T7_BASE_RATE"],
+  ["T7 Base-Rate Context", "T7_BASE_RATE"],
   ["T8 Expression", "T8_EXPRESSION_DECISION"],
 ] as const;
 
@@ -163,8 +163,9 @@ export function TickerReport({
                 </table>
               </div>
               <div className="border border-border-subtle px-3 py-2 text-sm text-muted">
-                T5 Ownership Flow and T7 Base Rate are context layers; they do
-                not upgrade the final decision or ticker priority score.
+                T5 Ownership Flow and T7 Base-Rate Context are non-upgrading
+                context layers; T7 uses same-ticker history until broader
+                cross-universe analogs are licensed and built.
               </div>
             </section>
 

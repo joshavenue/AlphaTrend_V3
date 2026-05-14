@@ -50,7 +50,32 @@ describe("Phase 17 advanced-layer scoring", () => {
     expect(result.reasonCodes).toContain(T5_REASON_CODES.FLOW_LICENSE_REQUIRED);
   });
 
-  it("returns low-sample warning before base-rate context can look supportive", () => {
+  it("treats missing ownership and ETF source rows as insufficient data", () => {
+    const result = scoreOwnershipFlow({});
+
+    expect(result.flowState).toBe("INSUFFICIENT_DATA");
+    expect(result.score).toBe(0);
+    expect(result.reasonCodes).toContain(T5_REASON_CODES.DATA_MISSING);
+    expect(result.reasonCodes).not.toContain(
+      T5_REASON_CODES.FLOW_NO_MEANINGFUL_ACCESS,
+    );
+  });
+
+  it("uses no meaningful flow access only when provider context exists", () => {
+    const result = scoreOwnershipFlow({
+      delayedData: true,
+      hasOwnershipSource: true,
+    });
+
+    expect(result.flowState).toBe("NO_MEANINGFUL_FLOW_ACCESS");
+    expect(result.score).toBe(0);
+    expect(result.reasonCodes).toContain(
+      T5_REASON_CODES.FLOW_NO_MEANINGFUL_ACCESS,
+    );
+    expect(result.reasonCodes).toContain(T5_REASON_CODES.FLOW_13F_DELAYED_DATA);
+  });
+
+  it("returns low-sample warning before five-year base-rate context can look supportive", () => {
     const result = scoreBaseRate(bars(180, 0.002));
 
     expect(result.baseRateState).toBe("LOW_SAMPLE_WARNING");
@@ -60,8 +85,18 @@ describe("Phase 17 advanced-layer scoring", () => {
     );
   });
 
+  it("keeps sub-five-year history from producing directional base-rate context", () => {
+    const result = scoreBaseRate(bars(900, 0.0013));
+
+    expect(result.baseRateState).toBe("LOW_SAMPLE_WARNING");
+    expect(result.score).toBe(0);
+    expect(result.reasonCodes).toContain(
+      T7_REASON_CODES.BASE_RATE_LOW_SAMPLE_WARNING,
+    );
+  });
+
   it("scores supportive base-rate context only with enough analog samples", () => {
-    const result = scoreBaseRate(bars(500, 0.0013));
+    const result = scoreBaseRate(bars(1500, 0.0013));
 
     expect(result.baseRateState).toBe("SUPPORTIVE");
     expect(result.sampleSize).toBeGreaterThanOrEqual(30);

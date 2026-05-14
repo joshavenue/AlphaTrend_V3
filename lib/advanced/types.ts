@@ -9,6 +9,8 @@ export type OwnershipFlowSnapshotInput = {
   delayedData?: boolean;
   etfFlowEligible?: boolean;
   etfWeight?: number;
+  hasEtfFlowSource?: boolean;
+  hasOwnershipSource?: boolean;
   holderCount?: number;
   licenseRestricted?: boolean;
   ownershipPercent?: number;
@@ -28,6 +30,8 @@ export type OwnershipFlowScoreDetail = {
   final_score: number;
   metrics: {
     etf_weight?: number;
+    has_etf_flow_source?: boolean;
+    has_ownership_source?: boolean;
     holder_count?: number;
     ownership_percent?: number;
     ownership_trend?: string;

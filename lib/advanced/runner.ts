@@ -29,7 +29,7 @@ const ACTIVE_THEME_STATUSES = [
   "ACTIVE_SCANNED",
   "ACTIVE",
 ] as const;
-const PRICE_BAR_LIMIT = 900;
+const PRICE_BAR_LIMIT = 1260;
 
 type CandidateForAdvanced = Awaited<
   ReturnType<typeof loadCandidatesForAdvanced>
@@ -199,6 +199,8 @@ function ownershipInput(
     delayedData: ownership?.delayedData ?? true,
     etfFlowEligible: etf?.flowEligible,
     etfWeight: decimalNumber(etf?.holdingWeight),
+    hasEtfFlowSource: Boolean(etf),
+    hasOwnershipSource: Boolean(ownership),
     holderCount: ownership?.holderCount ?? undefined,
     licenseRestricted: etf?.licenseRestricted,
     ownershipPercent: decimalNumber(ownership?.ownershipPercent),
@@ -494,7 +496,7 @@ export async function scoreOwnershipFlowLayer(
 
       if (result.reasonCodes.includes("DATA_MISSING")) {
         warnings.push({
-          code: "FLOW_DATA_MISSING",
+          code: T5_REASON_CODES.DATA_MISSING,
           message: "No current ownership or ETF-flow context was available.",
           severity: "CAUTION",
           themeCode: candidate.theme.sourceThemeCode ?? undefined,

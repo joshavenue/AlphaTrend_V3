@@ -207,6 +207,8 @@ enum JobType {
   ECONOMIC_DEMAND_REFRESH
   ECONOMIC_DEMAND_FETCH
   ECONOMIC_DEMAND_SCORE
+  OWNERSHIP_FLOW_SCORE
+  BASE_RATE_SCORE
   DATABASE_BACKUP
   BACKFILL
 }
@@ -299,16 +301,19 @@ model Security {
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  alerts         Alert[]
-  candidates     ThemeCandidate[]
-  evidence       EvidenceLedger[]
-  governmentAwards GovernmentAward[]
-  identifiers    SecurityIdentifier[]
-  priceBars      PriceBarDaily[]
-  priceMetrics   PriceMetricDaily[]
-  recipientMappings RecipientSecurityMapping[]
-  signalStates   SignalState[]
-  watchlistItems WatchlistItem[]
+  alerts             Alert[]
+  baseRateResults    BaseRateResult[]
+  candidates         ThemeCandidate[]
+  etfFlowSnapshots   EtfFlowSnapshot[]
+  evidence           EvidenceLedger[]
+  governmentAwards   GovernmentAward[]
+  identifiers        SecurityIdentifier[]
+  ownershipSnapshots OwnershipSnapshot[]
+  priceBars          PriceBarDaily[]
+  priceMetrics       PriceMetricDaily[]
+  recipientMappings  RecipientSecurityMapping[]
+  signalStates       SignalState[]
+  watchlistItems     WatchlistItem[]
 
   @@unique([canonicalTicker, exchange], map: "securities_canonical_ticker_exchange_key")
   @@unique([figi], map: "securities_figi_key")
@@ -361,8 +366,10 @@ model ProviderPayload {
 
   apiCalls             ApiObservability[]
   economicObservations EconomicObservation[]
+  etfFlowSnapshots     EtfFlowSnapshot[]
   evidence             EvidenceLedger[]
   governmentAwards     GovernmentAward[]
+  ownershipSnapshots   OwnershipSnapshot[]
   priceBars            PriceBarDaily[]
 
   @@unique([provider, endpoint, requestHash, responseHash], map: "provider_payloads_provider_endpoint_hashes_key")
@@ -370,6 +377,111 @@ model ProviderPayload {
   @@index([responseHash], map: "provider_payloads_response_hash_idx")
   @@index([fetchedAt], map: "provider_payloads_fetched_at_idx")
   @@map("provider_payloads")
+}
+
+model OwnershipSnapshot {
+  ownershipSnapshotId String       @id @default(uuid()) @map("ownership_snapshot_id") @db.Uuid
+  themeCandidateId    String?      @map("theme_candidate_id") @db.Uuid
+  themeId             String?      @map("theme_id") @db.Uuid
+  securityId          String       @map("security_id") @db.Uuid
+  provider            ProviderName @default(FMP)
+  reportDate          DateTime?    @map("report_date") @db.Date
+  holderCount         Int?         @map("holder_count")
+  totalShares         Decimal?     @map("total_shares") @db.Decimal(28, 4)
+  totalMarketValue    Decimal?     @map("total_market_value") @db.Decimal(28, 4)
+  ownershipPercent    Decimal?     @map("ownership_percent") @db.Decimal(18, 8)
+  ownershipTrend      String?      @map("ownership_trend")
+  delayedData         Boolean      @default(true) @map("delayed_data")
+  payloadId           String?      @map("payload_id") @db.Uuid
+  sourcePayloadHash   String?      @map("source_payload_hash")
+  fetchedAt           DateTime     @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  algorithmVersion    String       @map("algorithm_version")
+  jobRunId            String?      @map("job_run_id") @db.Uuid
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun         JobRun?          @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+  security       Security         @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  theme          ThemeDefinition? @relation(fields: [themeId], references: [themeId], onDelete: SetNull)
+  themeCandidate ThemeCandidate?  @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: SetNull)
+
+  @@index([securityId, reportDate], map: "ownership_snapshots_security_report_idx")
+  @@index([themeCandidateId, fetchedAt], map: "ownership_snapshots_candidate_fetched_idx")
+  @@index([provider, fetchedAt], map: "ownership_snapshots_provider_fetched_idx")
+  @@index([jobRunId], map: "ownership_snapshots_job_run_id_idx")
+  @@index([payloadId], map: "ownership_snapshots_payload_id_idx")
+  @@map("ownership_snapshots")
+}
+
+model EtfFlowSnapshot {
+  etfFlowSnapshotId String       @id @default(uuid()) @map("etf_flow_snapshot_id") @db.Uuid
+  themeId           String       @map("theme_id") @db.Uuid
+  themeCandidateId  String?      @map("theme_candidate_id") @db.Uuid
+  securityId        String?      @map("security_id") @db.Uuid
+  provider          ProviderName @default(FMP)
+  etfTicker         String       @map("etf_ticker")
+  holdingTicker     String?      @map("holding_ticker")
+  holdingWeight     Decimal?     @map("holding_weight") @db.Decimal(18, 8)
+  marketValue       Decimal?     @map("market_value") @db.Decimal(28, 4)
+  shares            Decimal?     @db.Decimal(28, 4)
+  asOfDate          DateTime?    @map("as_of_date") @db.Date
+  flowEligible      Boolean      @default(false) @map("flow_eligible")
+  licenseRestricted Boolean      @default(false) @map("license_restricted")
+  payloadId         String?      @map("payload_id") @db.Uuid
+  sourcePayloadHash String?      @map("source_payload_hash")
+  fetchedAt         DateTime     @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  algorithmVersion  String       @map("algorithm_version")
+  jobRunId          String?      @map("job_run_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun         JobRun?          @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
+  security       Security?        @relation(fields: [securityId], references: [securityId], onDelete: SetNull)
+  theme          ThemeDefinition  @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  themeCandidate ThemeCandidate?  @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: SetNull)
+
+  @@index([themeId, etfTicker, asOfDate], map: "etf_flow_snapshots_theme_etf_date_idx")
+  @@index([securityId, fetchedAt], map: "etf_flow_snapshots_security_fetched_idx")
+  @@index([themeCandidateId, fetchedAt], map: "etf_flow_snapshots_candidate_fetched_idx")
+  @@index([jobRunId], map: "etf_flow_snapshots_job_run_id_idx")
+  @@index([payloadId], map: "etf_flow_snapshots_payload_id_idx")
+  @@map("etf_flow_snapshots")
+}
+
+model BaseRateResult {
+  baseRateResultId    String        @id @default(uuid()) @map("base_rate_result_id") @db.Uuid
+  themeCandidateId    String        @map("theme_candidate_id") @db.Uuid
+  themeId             String        @map("theme_id") @db.Uuid
+  securityId          String        @map("security_id") @db.Uuid
+  setupKey            String        @map("setup_key")
+  sampleSize          Int           @default(0) @map("sample_size")
+  medianReturn1m      Decimal?      @map("median_return_1m") @db.Decimal(18, 8)
+  medianReturn3m      Decimal?      @map("median_return_3m") @db.Decimal(18, 8)
+  medianReturn6m      Decimal?      @map("median_return_6m") @db.Decimal(18, 8)
+  winRate1m           Decimal?      @map("win_rate_1m") @db.Decimal(18, 8)
+  winRate3m           Decimal?      @map("win_rate_3m") @db.Decimal(18, 8)
+  winRate6m           Decimal?      @map("win_rate_6m") @db.Decimal(18, 8)
+  medianDrawdown      Decimal?      @map("median_drawdown") @db.Decimal(18, 8)
+  worstDecileDrawdown Decimal?      @map("worst_decile_drawdown") @db.Decimal(18, 8)
+  state               BaseRateState
+  score               Decimal?      @db.Decimal(10, 4)
+  reasonCodes         Json?         @map("reason_codes")
+  evidenceIds         Json?         @map("evidence_ids")
+  algorithmVersion    String        @map("algorithm_version")
+  computedAt          DateTime      @default(now()) @map("computed_at") @db.Timestamptz(3)
+  jobRunId            String?       @map("job_run_id") @db.Uuid
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  jobRun         JobRun?         @relation(fields: [jobRunId], references: [jobRunId], onDelete: SetNull)
+  security       Security        @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  theme          ThemeDefinition @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  themeCandidate ThemeCandidate  @relation(fields: [themeCandidateId], references: [themeCandidateId], onDelete: Restrict)
+
+  @@index([themeCandidateId, computedAt], map: "base_rate_results_candidate_computed_idx")
+  @@index([themeId, state, computedAt], map: "base_rate_results_theme_state_computed_idx")
+  @@index([securityId, setupKey], map: "base_rate_results_security_setup_idx")
+  @@index([jobRunId], map: "base_rate_results_job_run_id_idx")
+  @@map("base_rate_results")
 }
 
 model PriceBarDaily {
@@ -493,7 +605,7 @@ model EconomicObservation {
   fetchedAt             DateTime     @default(now()) @map("fetched_at") @db.Timestamptz(3)
   createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  economicSeries EconomicSeries  @relation(fields: [economicSeriesId], references: [economicSeriesId], onDelete: Restrict)
+  economicSeries EconomicSeries   @relation(fields: [economicSeriesId], references: [economicSeriesId], onDelete: Restrict)
   payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
 
   @@unique([economicSeriesId, observationDate, metricName], map: "economic_observations_series_date_metric_key")
@@ -533,27 +645,27 @@ model ThemeEconomicMapping {
 }
 
 model GovernmentAward {
-  governmentAwardId  String                @id @default(uuid()) @map("government_award_id") @db.Uuid
-  themeId            String?               @map("theme_id") @db.Uuid
-  mappedSecurityId   String?               @map("mapped_security_id") @db.Uuid
-  provider           ProviderName          @default(USA_SPENDING)
-  awardId            String?               @map("award_id")
-  recipientName      String?               @map("recipient_name")
-  recipientUei       String?               @map("recipient_uei")
-  recipientDuns      String?               @map("recipient_duns")
-  awardAmount        Decimal?              @map("award_amount") @db.Decimal(28, 4)
-  awardingAgency     String?               @map("awarding_agency")
-  fundingAgency      String?               @map("funding_agency")
-  awardType          String?               @map("award_type")
-  startDate          DateTime?             @map("start_date") @db.Date
-  endDate            DateTime?             @map("end_date") @db.Date
-  description        String?
-  mappingConfidence  IdentifierConfidence? @map("mapping_confidence")
-  mappingMethod      String?               @map("mapping_method")
-  payloadId          String?               @map("payload_id") @db.Uuid
-  sourcePayloadHash  String?               @map("source_payload_hash")
-  fetchedAt          DateTime              @default(now()) @map("fetched_at") @db.Timestamptz(3)
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  governmentAwardId String                @id @default(uuid()) @map("government_award_id") @db.Uuid
+  themeId           String?               @map("theme_id") @db.Uuid
+  mappedSecurityId  String?               @map("mapped_security_id") @db.Uuid
+  provider          ProviderName          @default(USA_SPENDING)
+  awardId           String?               @map("award_id")
+  recipientName     String?               @map("recipient_name")
+  recipientUei      String?               @map("recipient_uei")
+  recipientDuns     String?               @map("recipient_duns")
+  awardAmount       Decimal?              @map("award_amount") @db.Decimal(28, 4)
+  awardingAgency    String?               @map("awarding_agency")
+  fundingAgency     String?               @map("funding_agency")
+  awardType         String?               @map("award_type")
+  startDate         DateTime?             @map("start_date") @db.Date
+  endDate           DateTime?             @map("end_date") @db.Date
+  description       String?
+  mappingConfidence IdentifierConfidence? @map("mapping_confidence")
+  mappingMethod     String?               @map("mapping_method")
+  payloadId         String?               @map("payload_id") @db.Uuid
+  sourcePayloadHash String?               @map("source_payload_hash")
+  fetchedAt         DateTime              @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
 
   mappedSecurity Security?        @relation(fields: [mappedSecurityId], references: [securityId], onDelete: SetNull)
   payload        ProviderPayload? @relation(fields: [payloadId], references: [payloadId], onDelete: SetNull)
@@ -603,14 +715,17 @@ model JobRun {
   errorSummary  String?   @map("error_summary")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  apiCalls     ApiObservability[]
-  evidence     EvidenceLedger[]
-  jobItems     JobItem[]
-  jobLocks     JobLock[]
-  signalScores CandidateSignalScore[]
-  signalStates CandidateSignalState[]
-  snapshots    ThemeSnapshot[]
-  stateHistory SignalState[]
+  apiCalls           ApiObservability[]
+  baseRateResults    BaseRateResult[]
+  etfFlowSnapshots   EtfFlowSnapshot[]
+  evidence           EvidenceLedger[]
+  jobItems           JobItem[]
+  jobLocks           JobLock[]
+  ownershipSnapshots OwnershipSnapshot[]
+  signalScores       CandidateSignalScore[]
+  signalStates       CandidateSignalState[]
+  snapshots          ThemeSnapshot[]
+  stateHistory       SignalState[]
 
   @@index([jobType, status, startedAt], map: "job_runs_type_status_started_at_idx")
   @@index([scopeType, scopeId], map: "job_runs_scope_idx")
@@ -670,48 +785,54 @@ model ThemeDefinition {
   createdAt                     DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  alerts         Alert[]
-  basketPrices   ThemeBasketPrice[]
-  candidates     ThemeCandidate[]
-  economicMappings ThemeEconomicMapping[]
-  evidence       EvidenceLedger[]
-  governmentAwards GovernmentAward[]
-  signalStates   SignalState[]
-  snapshots      ThemeSnapshot[]
-  watchlistItems WatchlistItem[]
+  alerts             Alert[]
+  baseRateResults    BaseRateResult[]
+  basketPrices       ThemeBasketPrice[]
+  candidates         ThemeCandidate[]
+  economicMappings   ThemeEconomicMapping[]
+  etfFlowSnapshots   EtfFlowSnapshot[]
+  evidence           EvidenceLedger[]
+  governmentAwards   GovernmentAward[]
+  ownershipSnapshots OwnershipSnapshot[]
+  signalStates       SignalState[]
+  snapshots          ThemeSnapshot[]
+  watchlistItems     WatchlistItem[]
 
   @@index([status], map: "theme_definitions_status_idx")
   @@map("theme_definitions")
 }
 
 model ThemeCandidate {
-  themeCandidateId  String           @id @default(uuid()) @map("theme_candidate_id") @db.Uuid
-  themeId           String           @map("theme_id") @db.Uuid
-  securityId        String           @map("security_id") @db.Uuid
-  candidateStatus   CandidateStatus  @map("candidate_status")
-  beneficiaryType   BeneficiaryType? @map("beneficiary_type")
-  finalState        FinalState?      @map("final_state")
-  sourceOfInclusion String           @map("source_of_inclusion")
-  sourceDetail      Json?            @map("source_detail")
-  tickerReviewPriorityScore Decimal? @map("ticker_review_priority_score") @db.Decimal(10, 4)
-  rejectionReasonCodes Json?         @map("rejection_reason_codes")
-  topPassReason     String?          @map("top_pass_reason")
-  topFailReason     String?          @map("top_fail_reason")
-  firstSeenAt       DateTime         @default(now()) @map("first_seen_at") @db.Timestamptz(3)
-  lastSeenAt        DateTime?        @map("last_seen_at") @db.Timestamptz(3)
-  lastScannedAt     DateTime?        @map("last_scanned_at") @db.Timestamptz(3)
-  displayGroup      String?          @map("display_group")
-  dashboardVisible  Boolean          @default(true) @map("dashboard_visible")
-  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  themeCandidateId          String           @id @default(uuid()) @map("theme_candidate_id") @db.Uuid
+  themeId                   String           @map("theme_id") @db.Uuid
+  securityId                String           @map("security_id") @db.Uuid
+  candidateStatus           CandidateStatus  @map("candidate_status")
+  beneficiaryType           BeneficiaryType? @map("beneficiary_type")
+  finalState                FinalState?      @map("final_state")
+  sourceOfInclusion         String           @map("source_of_inclusion")
+  sourceDetail              Json?            @map("source_detail")
+  tickerReviewPriorityScore Decimal?         @map("ticker_review_priority_score") @db.Decimal(10, 4)
+  rejectionReasonCodes      Json?            @map("rejection_reason_codes")
+  topPassReason             String?          @map("top_pass_reason")
+  topFailReason             String?          @map("top_fail_reason")
+  firstSeenAt               DateTime         @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt                DateTime?        @map("last_seen_at") @db.Timestamptz(3)
+  lastScannedAt             DateTime?        @map("last_scanned_at") @db.Timestamptz(3)
+  displayGroup              String?          @map("display_group")
+  dashboardVisible          Boolean          @default(true) @map("dashboard_visible")
+  createdAt                 DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  alerts         Alert[]
-  security       Security               @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
-  signalScores   CandidateSignalScore[]
-  signalStates   CandidateSignalState[]
-  stateHistory   SignalState[]
-  theme          ThemeDefinition        @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
-  watchlistItems WatchlistItem[]
+  alerts             Alert[]
+  baseRateResults    BaseRateResult[]
+  etfFlowSnapshots   EtfFlowSnapshot[]
+  ownershipSnapshots OwnershipSnapshot[]
+  security           Security               @relation(fields: [securityId], references: [securityId], onDelete: Restrict)
+  signalScores       CandidateSignalScore[]
+  signalStates       CandidateSignalState[]
+  stateHistory       SignalState[]
+  theme              ThemeDefinition        @relation(fields: [themeId], references: [themeId], onDelete: Restrict)
+  watchlistItems     WatchlistItem[]
 
   @@unique([themeId, securityId], map: "theme_candidates_theme_security_key")
   @@index([themeId, securityId], map: "theme_candidates_theme_security_idx")

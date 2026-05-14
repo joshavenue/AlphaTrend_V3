@@ -4,6 +4,7 @@ import type {
   PrismaClient,
   ProviderName,
 } from "@/generated/prisma/client";
+import { scoreAdvancedLayers } from "@/lib/advanced/runner";
 import { evaluateAlerts } from "@/lib/alerts/runner";
 import { generateThemeCandidates } from "@/lib/candidates/generator";
 import {
@@ -51,6 +52,7 @@ export type ThemeScanOrchestrationOptions = {
   exposureIncludeSec?: boolean;
   fundamentalsIncludeFmp?: boolean;
   fundamentalsIncludeSec?: boolean;
+  includeAdvanced?: boolean;
   includeDemand?: boolean;
   liquidityIncludeFmp?: boolean;
   liquidityIncludeMassive?: boolean;
@@ -365,6 +367,33 @@ export async function runThemeScanOrchestration(
         }),
       ),
     );
+
+    if (options.includeAdvanced ?? true) {
+      stages.push(
+        await runStage(
+          prisma,
+          jobRun.jobRunId,
+          "t5_t7_advanced_context",
+          async () => {
+            const result = await scoreAdvancedLayers(prisma, {
+              themeRef: options.themeRef,
+            });
+
+            return {
+              evidenceWritten:
+                result.flowEvidenceWritten + result.baseRateEvidenceWritten,
+              jobRunId: [result.flowJobRunId, result.baseRateJobRunId]
+                .filter(Boolean)
+                .join(","),
+              providerCalls: result.providerCalls,
+              rowsRead: result.rowsRead,
+              rowsWritten: result.flowRowsWritten + result.baseRateRowsWritten,
+              warnings: result.warnings,
+            };
+          },
+        ),
+      );
+    }
 
     stages.push(
       await runStage(prisma, jobRun.jobRunId, "t11_theme_snapshot", () =>

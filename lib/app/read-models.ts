@@ -8,6 +8,7 @@ import type {
   WatchlistStatus,
   WatchType,
 } from "@/generated/prisma/client";
+import { T5_SIGNAL_LAYER, T7_SIGNAL_LAYER } from "@/lib/advanced/constants";
 import {
   decodePageCursor,
   pageRows,
@@ -26,7 +27,9 @@ const SIGNAL_LAYERS = [
   T1_SIGNAL_LAYER,
   T3_SIGNAL_LAYER,
   T4_SIGNAL_LAYER,
+  T5_SIGNAL_LAYER,
   T6_SIGNAL_LAYER,
+  T7_SIGNAL_LAYER,
   T8_SIGNAL_LAYER,
 ] as const;
 

@@ -115,13 +115,14 @@ describe("Phase 12 auth and UI contract", () => {
     expect(source).not.toMatch(/\bStrong Buy\b|\bBuy now\b|\bSell now\b/);
   });
 
-  it("collapses T5 and T7 as reserved zero-contribution layers", () => {
+  it("keeps T5 and T7 as context-only non-upgrade layers", () => {
     const source = readFileSync(
       join(process.cwd(), "components/ticker-report.tsx"),
       "utf8",
     );
 
     expect(source).toContain("T5 Ownership Flow and T7 Base Rate");
-    expect(source).toContain("contribute 0 points today");
+    expect(source).toContain("context layers");
+    expect(source).toContain("not upgrade the final decision");
   });
 });

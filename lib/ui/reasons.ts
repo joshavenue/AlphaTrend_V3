@@ -113,6 +113,31 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Provider values materially disagreed and require reconciliation.",
     "WARNING",
   ),
+  BASE_RATE_LOW_SAMPLE_WARNING: meta(
+    "Base-rate sample small",
+    "Historical analog context exists but the comparable sample is below the minimum threshold.",
+    "CAUTION",
+  ),
+  BASE_RATE_MIXED: meta(
+    "Base rate mixed",
+    "Historical analog outcomes are mixed and should be treated as context only.",
+    "INFO",
+  ),
+  BASE_RATE_SUPPORTIVE: meta(
+    "Base rate supportive",
+    "Historical analog outcomes are supportive, but they do not override the core gates.",
+    "INFO",
+  ),
+  BASE_RATE_SURVIVORSHIP_WARNING: meta(
+    "Survivorship warning",
+    "Historical context may be biased because delisted or incomplete history can be missing.",
+    "CAUTION",
+  ),
+  BASE_RATE_UNFAVORABLE: meta(
+    "Base rate unfavorable",
+    "Historical analog outcomes are unfavorable for this setup.",
+    "CAUTION",
+  ),
   DECISION_BASKET_PREFERRED: meta(
     "Basket preferred",
     "The theme has multiple candidates or dispersion risk that makes basket expression preferable.",
@@ -172,6 +197,46 @@ export const REASON_METADATA: Record<string, Omit<ReasonMeta, "code">> = {
     "Wrong ticker for theme",
     "The ticker does not capture the theme's economic mechanism despite surface-level similarity.",
     "BLOCKER",
+  ),
+  FLOW_13F_DELAYED_DATA: meta(
+    "13F data delayed",
+    "Ownership data is delayed and should be used as slow confirmation only.",
+    "INFO",
+  ),
+  FLOW_CROWDED: meta(
+    "Crowded ownership",
+    "Ownership concentration is high enough to flag crowding risk.",
+    "CAUTION",
+  ),
+  FLOW_DISTRIBUTION_WARNING: meta(
+    "Ownership trimming",
+    "Ownership trend suggests distribution or trimming.",
+    "WARNING",
+  ),
+  FLOW_ETF_ELIGIBLE: meta(
+    "ETF-flow eligible",
+    "The ticker appears in ETF or basket context, which proves access but not automatic upside.",
+    "INFO",
+  ),
+  FLOW_INSTITUTIONAL_ACCUMULATION: meta(
+    "Institutional accumulation",
+    "Ownership breadth and trend suggest institutional accumulation.",
+    "INFO",
+  ),
+  FLOW_LICENSE_REQUIRED: meta(
+    "Flow data licensed",
+    "Ownership or ETF-flow context needs a licensed provider endpoint before stronger scoring.",
+    "CAUTION",
+  ),
+  FLOW_NO_MEANINGFUL_ACCESS: meta(
+    "No flow access",
+    "Current data does not show meaningful institutional or ETF-flow access.",
+    "CAUTION",
+  ),
+  FLOW_OWNERSHIP_BROADENING: meta(
+    "Ownership broadening",
+    "Ownership breadth is improving or broad enough to be contextually relevant.",
+    "INFO",
   ),
   DEMAND_EVIDENCE_STALE: meta(
     "Demand evidence stale",

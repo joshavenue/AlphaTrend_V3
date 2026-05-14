@@ -10,7 +10,9 @@ const STACK = [
   ["T1 Exposure", "T1_EXPOSURE_PURITY"],
   ["T3 Fundamentals", "T3_FUNDAMENTALS"],
   ["T4 Price / Valuation", "T4_PRICE_VALUATION_PARTICIPATION"],
+  ["T5 Ownership / Flow", "T5_OWNERSHIP_FLOW"],
   ["T6 Liquidity / Dilution", "T6_LIQUIDITY_DILUTION_FRAGILITY"],
+  ["T7 Base Rate", "T7_BASE_RATE"],
   ["T8 Expression", "T8_EXPRESSION_DECISION"],
 ] as const;
 
@@ -161,8 +163,8 @@ export function TickerReport({
                 </table>
               </div>
               <div className="border border-border-subtle px-3 py-2 text-sm text-muted">
-                T5 Ownership Flow and T7 Base Rate are reserved for V3.1 and
-                contribute 0 points today.
+                T5 Ownership Flow and T7 Base Rate are context layers; they do
+                not upgrade the final decision or ticker priority score.
               </div>
             </section>
 

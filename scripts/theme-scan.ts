@@ -65,6 +65,8 @@ export function parseThemeScanArgs(argv: string[]) {
       options.includeDemand = true;
     } else if (arg.startsWith("--demand=")) {
       options.includeDemand = parseBoolean(arg.split("=")[1]);
+    } else if (arg.startsWith("--advanced=")) {
+      options.includeAdvanced = parseBoolean(arg.split("=")[1]);
     } else if (arg.startsWith("--demand-provider=")) {
       options.demandProvider = arg
         .split("=")
@@ -111,7 +113,7 @@ export function parseThemeScanArgs(argv: string[]) {
       options.liquidityIncludeSec = enabled;
     } else {
       throw new Error(
-        `Unknown job:theme-scan option "${arg}". Use --all, --theme=..., --include-demand, --fmp=off, --massive=off, or layer-specific provider flags.`,
+        `Unknown job:theme-scan option "${arg}". Use --all, --theme=..., --include-demand, --advanced=off, --fmp=off, --massive=off, or layer-specific provider flags.`,
       );
     }
   }

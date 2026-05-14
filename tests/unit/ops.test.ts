@@ -15,6 +15,7 @@ describe("Phase 16 operational command parsing", () => {
         "--sec=off",
         "--include-demand",
         "--demand-provider=EIA",
+        "--advanced=off",
       ]),
     ).toMatchObject({
       candidateIncludeFmp: false,
@@ -23,6 +24,7 @@ describe("Phase 16 operational command parsing", () => {
       exposureIncludeSec: false,
       fundamentalsIncludeFmp: false,
       fundamentalsIncludeSec: false,
+      includeAdvanced: false,
       includeDemand: true,
       liquidityIncludeFmp: false,
       liquidityIncludeMassive: false,

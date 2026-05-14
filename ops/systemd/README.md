@@ -21,5 +21,9 @@ env file:  /srv/alphatrend/.env
 node/npm:  available on PATH for non-interactive systemd services
 ```
 
+`alphatrend-theme-scan.service` has an `ExecStartPre` provider-smoke gate. The
+scheduled full scan starts only when the latest `PROVIDER_SMOKE` job is fresh
+and `SUCCEEDED`.
+
 Do not install the scheduled timers against Vercel production until the
 production database decision is closed. Hetzner remains the verified job runtime.

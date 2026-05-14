@@ -8,6 +8,20 @@ import {
   type ThemeScanOrchestrationOptions,
 } from "@/lib/ops/runner";
 
+function failurePayload(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const operationalSummary =
+    typeof error === "object" && error && "operationalSummary" in error
+      ? (error as { operationalSummary?: unknown }).operationalSummary
+      : undefined;
+
+  return {
+    error: message,
+    operational_summary: operationalSummary,
+    status: "FAILED",
+  };
+}
+
 function parseBoolean(value: string) {
   if (["off", "false", "0", "no"].includes(value.toLowerCase())) {
     return false;
@@ -109,9 +123,9 @@ async function main() {
   const options = parseThemeScanArgs(process.argv.slice(2));
   const prisma = createPrismaClient();
 
-  await prisma.$connect();
-
   try {
+    await prisma.$connect();
+
     const result = await runThemeScanOrchestration(prisma, options);
 
     console.log(
@@ -131,8 +145,11 @@ async function main() {
     );
 
     process.exitCode = result.status === "FAILED" ? 1 : 0;
+  } catch (error) {
+    console.error(JSON.stringify(failurePayload(error), null, 2));
+    process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    await prisma.$disconnect().catch(() => undefined);
   }
 }
 

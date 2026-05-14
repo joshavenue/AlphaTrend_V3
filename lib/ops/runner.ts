@@ -149,6 +149,19 @@ function summarizeStage(stage: string, result: StageResult) {
   } satisfies OperationalStageSummary;
 }
 
+function stageWarningSummary(summary: OperationalStageSummary) {
+  if (summary.status !== "PARTIAL") {
+    return undefined;
+  }
+
+  return [
+    `Stage completed with ${summary.warnings} warning(s).`,
+    summary.jobRunId ? `child_job_run_id=${summary.jobRunId}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function aggregateStages(stages: OperationalStageSummary[]) {
   return stages.reduce(
     (acc, stage) => ({
@@ -191,6 +204,7 @@ async function runStage(
 
     await prisma.jobItem.update({
       data: {
+        errorSummary: stageWarningSummary(summary),
         finishedAt: new Date(),
         status: summary.status === "FAILED" ? "FAILED" : "SUCCEEDED",
       },

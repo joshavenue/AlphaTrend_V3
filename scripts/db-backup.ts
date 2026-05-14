@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createPrismaClient } from "@/lib/db/prisma";
 
 const DEFAULT_BACKUP_DIR = "backups/postgres";
+const DEFAULT_RETENTION_DAYS = 14;
+const MIN_RETENTION_DAYS = 7;
 const BACKUP_LOCK_TTL_MS = 60 * 60 * 1000;
 const MAX_ERROR_LENGTH = 512;
 
@@ -13,6 +15,7 @@ type BackupOptions = {
   dryRun: boolean;
   label?: string;
   outputDir: string;
+  retentionDays: number;
 };
 
 function shortError(error: unknown) {
@@ -37,10 +40,40 @@ function safeFilenamePart(value: string) {
     .slice(0, 64);
 }
 
+function parsePositiveInteger(value: string, label: string) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+
+  return parsed;
+}
+
+function retentionDaysFromEnv() {
+  if (!process.env.ALPHATREND_BACKUP_RETENTION_DAYS) {
+    return DEFAULT_RETENTION_DAYS;
+  }
+
+  return parsePositiveInteger(
+    process.env.ALPHATREND_BACKUP_RETENTION_DAYS,
+    "ALPHATREND_BACKUP_RETENTION_DAYS",
+  );
+}
+
+function assertMinimumRetention(days: number) {
+  if (days < MIN_RETENTION_DAYS) {
+    throw new Error(
+      `Backup retention must be at least ${MIN_RETENTION_DAYS} days.`,
+    );
+  }
+}
+
 function parseArgs(argv: string[]): BackupOptions {
   const options: BackupOptions = {
     dryRun: false,
     outputDir: process.env.ALPHATREND_BACKUP_DIR ?? DEFAULT_BACKUP_DIR,
+    retentionDays: retentionDaysFromEnv(),
   };
 
   for (const arg of argv) {
@@ -50,12 +83,19 @@ function parseArgs(argv: string[]): BackupOptions {
       options.outputDir = arg.split("=").slice(1).join("=");
     } else if (arg.startsWith("--label=")) {
       options.label = arg.split("=").slice(1).join("=");
+    } else if (arg.startsWith("--retention-days=")) {
+      options.retentionDays = parsePositiveInteger(
+        arg.split("=").slice(1).join("="),
+        "retention-days",
+      );
     } else {
       throw new Error(
-        `Unknown db:backup option "${arg}". Use --output-dir=..., --label=..., or --dry-run.`,
+        `Unknown db:backup option "${arg}". Use --output-dir=..., --label=..., --retention-days=14, or --dry-run.`,
       );
     }
   }
+
+  assertMinimumRetention(options.retentionDays);
 
   return options;
 }
@@ -250,6 +290,61 @@ async function runPgDump(
   });
 }
 
+async function verifyBackupReadable(backupPath: string) {
+  return new Promise<void>((resolveVerify, rejectVerify) => {
+    const child = spawn("pg_restore", ["--list", backupPath], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", rejectVerify);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolveVerify();
+      } else {
+        rejectVerify(
+          new Error(stderr.trim() || `pg_restore --list exited with ${code}`),
+        );
+      }
+    });
+  });
+}
+
+async function pruneOldBackups(
+  outputDir: string,
+  now: Date,
+  retentionDays: number,
+) {
+  const cutoff = now.getTime() - retentionDays * 24 * 60 * 60 * 1000;
+  const entries = await readdir(outputDir);
+  const prunedFiles: string[] = [];
+
+  for (const entry of entries) {
+    const isBackupArtifact =
+      entry.startsWith("alphatrend-") &&
+      (entry.endsWith(".dump") || entry.endsWith(".dump.manifest.json"));
+
+    if (!isBackupArtifact) {
+      continue;
+    }
+
+    const artifactPath = join(outputDir, entry);
+    const artifactStat = await stat(artifactPath);
+
+    if (!artifactStat.isFile() || artifactStat.mtime.getTime() >= cutoff) {
+      continue;
+    }
+
+    await unlink(artifactPath);
+    prunedFiles.push(entry);
+  }
+
+  return prunedFiles.sort();
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const databaseUrl = process.env.DATABASE_URL;
@@ -274,6 +369,7 @@ async function main() {
     host: dbEnv.PGHOST,
     manifest_file: manifestPath,
     port: dbEnv.PGPORT,
+    retention_days: options.retentionDays,
     user: dbEnv.PGUSER,
   };
 
@@ -296,6 +392,7 @@ async function main() {
     await acquireLock(prisma, jobRun.jobRunId, lockKey);
     await mkdir(outputDir, { recursive: true });
     await runPgDump(dbEnv, backupPath);
+    await verifyBackupReadable(backupPath);
 
     const manifest = {
       app_commit: await appCommit(),
@@ -310,15 +407,22 @@ async function main() {
       latest_migration: await latestMigration(prisma),
       manifest_version: 1,
       port: dbEnv.PGPORT,
+      restore_list_verified: true,
+      retention_days: options.retentionDays,
       user: dbEnv.PGUSER,
     };
 
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    const prunedFiles = await pruneOldBackups(
+      outputDir,
+      now,
+      options.retentionDays,
+    );
 
     await prisma.jobRun.update({
       data: {
         finishedAt: new Date(),
-        rowsWritten: 2,
+        rowsWritten: 2 + prunedFiles.length,
         status: "SUCCEEDED",
       },
       where: {
@@ -332,6 +436,9 @@ async function main() {
           backup_file: backupPath,
           job_run_id: jobRun.jobRunId,
           manifest_file: manifestPath,
+          pruned_files: prunedFiles.length,
+          restore_list_verified: true,
+          retention_days: options.retentionDays,
           status: "SUCCEEDED",
         },
         null,

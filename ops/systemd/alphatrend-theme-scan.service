@@ -7,4 +7,5 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=/srv/alphatrend
 EnvironmentFile=/srv/alphatrend/.env
+ExecStartPre=/usr/bin/env npm run ops:provider-smoke-gate -- --max-age-minutes=180
 ExecStart=/usr/bin/env npm run job:theme-scan -- --all --demand=off
